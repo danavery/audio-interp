@@ -1,3 +1,5 @@
+import os
+import pickle
 import random
 from collections import defaultdict
 
@@ -35,10 +37,29 @@ class UrbanSoundDatasetHandler:
         self._index_dataset()
 
     def _index_dataset(self):
-        for index, item in enumerate(self.dataset["train"]):
-            self.filename_to_index[item["slice_file_name"]] = index
-            self.class_to_class_id[item["class"]] = int(item["classID"])
-            self.class_id_files[int(item["classID"])].append(item["slice_file_name"])
+        if os.path.isfile("us_indexes.pkl"):
+            with open("us_indexes.pkl", "rb") as file:
+                (
+                    self.filename_to_index,
+                    self.class_to_class_id,
+                    self.class_id_files,
+                ) = pickle.load(file)
+        else:
+            for index, item in enumerate(self.dataset["train"]):
+                self.filename_to_index[item["slice_file_name"]] = index
+                self.class_to_class_id[item["class"]] = int(item["classID"])
+                self.class_id_files[int(item["classID"])].append(
+                    item["slice_file_name"]
+                )
+            with open("us_indexes.pkl", "wb") as file:
+                pickle.dump(
+                    (
+                        self.filename_to_index,
+                        self.class_to_class_id,
+                        self.class_id_files,
+                    ),
+                    file,
+                )
 
     def fetch_random_audio_example(self):
         example_index = random.randint(0, len(self.dataset["train"]) - 1)
@@ -53,7 +74,7 @@ class UrbanSoundDatasetHandler:
         example = self.dataset["train"][index]
         return example
 
-    def fetch_example_by_filename(self, filename):
+    def fetch_example_by_filename(self, file_name):
         example = self.dataset["train"][self.filename_to_index[file_name]]
         return example
 
@@ -150,6 +171,7 @@ def preprocess_with_ast_feature_extractor(
 
 
 def plot_spectrogram(input_sr, spec, hop_length):
+    plt.close()
     fig, ax = plt.subplots(figsize=(5, 2))
     _ = specshow(
         spec.numpy(),
@@ -175,9 +197,6 @@ def get_feature_extractor(feature_extractor_type):
     return feature_extractor, extractor_hop_length
 
 
-dataset_handler = UrbanSoundDatasetHandler()
-
-
 def process(file_name=None, audio_class=None, model="AST", selection_method="random"):
     file_name, audio_class, waveform, file_sr = dataset_handler.load_file(
         file_name, audio_class, selection_method
@@ -197,13 +216,6 @@ def process(file_name=None, audio_class=None, model="AST", selection_method="ran
     return fig, audio[0].numpy(), file_name, audio_class, input_sr
 
 
-fig, audio, file_name, audio_class, input_sr = process(
-    file_name="138031-2-0-45.wav", model="AST2"
-)
-plt.show()
-Audio(audio, rate=input_sr)
-
-
 def generate_gradio_elements(file_name, class_picker, model, selection_method):
     fig, audio, file_name, audio_class, input_sr = process(
         file_name, class_picker, model, selection_method
@@ -215,16 +227,14 @@ def generate_gradio_elements(file_name, class_picker, model, selection_method):
     return fig, audio, file_name, class_picker
 
 
-def generate_gradio_elements_filename(file_name, class_picker, model, selection_method):
+def generate_gradio_elements_filename(file_name, class_picker, model, _):
     return generate_gradio_elements(file_name, class_picker, model, "filename")
 
 
-spec = process("137969-2-0-37.wav")
-
-
+dataset_handler = UrbanSoundDatasetHandler()
 classes = list(dataset_handler.class_to_class_id.keys())
 choices = [
-    ("by filename", "filename"),
+    ("by slice_file_name", "filename"),
     ("randomly from class", "class"),
     ("randomly from entire dataset", "random"),
 ]
@@ -238,7 +248,7 @@ with gr.Blocks() as demo:
     with gr.Row():
         file_name = gr.Textbox(label="slice_file_name in dataset")
         class_picker = gr.Dropdown(
-            choices=classes, label="Choose a category", value=classes[-1]
+            choices=classes, label="Choose a class", value=classes[-1]
         )
         gen_button = gr.Button("Get Spec")
     with gr.Row():
@@ -263,3 +273,11 @@ with gr.Blocks() as demo:
         fn=generate_gradio_elements,
     )
 demo.launch()
+
+
+def test_process():
+    fig, audio, file_name, audio_class, input_sr = process(
+        file_name="138031-2-0-45.wav", model="AST2"
+    )
+    plt.show()
+    Audio(audio, rate=input_sr)

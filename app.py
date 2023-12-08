@@ -1,19 +1,17 @@
-# %%
-from collections import defaultdict
 import random
+from collections import defaultdict
 
-from librosa.display import specshow
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from datasets import load_dataset
-from torchaudio.transforms import AmplitudeToDB, MelSpectrogram, Resample
-import gradio as gr
-from transformers import AutoFeatureExtractor
-import numpy as np
 from IPython.display import Audio
+from librosa.display import specshow
+from torchaudio.transforms import AmplitudeToDB, MelSpectrogram, Resample
+from transformers import AutoFeatureExtractor
 
+import gradio as gr
 
-# %%
 feature_extractor_names = [
     "MIT/ast-finetuned-audioset-10-10-0.4593",
     "MIT/ast-finetuned-speech-commands-v2",
@@ -59,34 +57,42 @@ class UrbanSoundDatasetHandler:
         example = self.dataset["train"][self.filename_to_index[file_name]]
         return example
 
+    def get_audio_sample(self, file_name=None, audio_class=None):
+        if file_name:
+            example = self.fetch_example_by_filename(file_name)
+        elif audio_class:
+            example = self.fetch_random_example_by_class(audio_class)
+        else:
+            example = self.fetch_random_audio_example()
+
+        waveform = torch.tensor(example["audio"]["array"]).float()
+        waveform = torch.unsqueeze(waveform, 0)
+        sr = example["audio"]["sampling_rate"]
+        slice_file_name = example["slice_file_name"]
+        audio_class = example["class"]
+        return waveform, sr, slice_file_name, audio_class
+
+    def load_file(self, file_name=None, audio_class=None, selection_method="random"):
+        if selection_method == "filename":
+            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample(
+                file_name=file_name
+            )
+        elif selection_method == "class":
+            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample(
+                audio_class=audio_class
+            )
+        else:
+            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample()
+        return slice_file_name, audio_class, waveform, file_sr
 
 
-
-
-def fetch_example(file_name=None, audio_class=None):
-    if file_name:
-        example = dataset_handler.fetch_example_by_filename(file_name)
-    elif audio_class:
-        example = dataset_handler.fetch_random_example_by_class(audio_class)
-    else:
-        example = dataset_handler.fetch_random_audio_example()
-
-    waveform = torch.tensor(example["audio"]["array"]).float()
-    waveform = torch.unsqueeze(waveform, 0)
-    sr = example["audio"]["sampling_rate"]
-    slice_file_name = example["slice_file_name"]
-    audio_class = example["class"]
-    return waveform, sr, slice_file_name, audio_class
-
-
-# %%
 class SpectrogramGenerator:
-    def __init__(self, n_mels=64, n_fft=512, hop_length=256):
+    def __init__(self, sample_rate, n_mels=64, n_fft=512, hop_length=256):
         self.n_mels = n_mels
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.spec_transformer = MelSpectrogram(
-            sample_rate=None,
+            sample_rate=sample_rate,
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             n_mels=self.n_mels,
@@ -104,7 +110,6 @@ class SpectrogramGenerator:
         return spectrogram
 
 
-# %%
 def resample(audio, file_sr, input_sr):
     if audio.shape[0] > 1:
         audio = torch.mean(audio, dim=0, keepdim=True)
@@ -117,16 +122,14 @@ def resample(audio, file_sr, input_sr):
     return audio, num_samples, total_duration
 
 
-# %%
 def preprocess(waveform, file_sr, input_sr):
     audio, _, duration = resample(waveform, file_sr, input_sr)
-    spec_generator = SpectrogramGenerator()
-    spec = spec_generator.generate_spectrogram(audio, input_sr)
+    spec_generator = SpectrogramGenerator(input_sr)
+    spec = spec_generator.generate_mel_spectrogram(audio, input_sr)
     spec = spec_generator.normalize_spectrogram(spec)
     return audio, spec
 
 
-# %%
 def preprocess_with_ast_feature_extractor(
     waveform, file_sr, output_sr, feature_extractor
 ):
@@ -146,24 +149,6 @@ def preprocess_with_ast_feature_extractor(
     return raw_audio, spec
 
 
-# %%
-def load_file(file_name, audio_class, selection_method):
-    if selection_method == "filename":
-        waveform, file_sr, file_name, audio_class = fetch_example(
-            file_name=file_name, audio_class=None
-        )
-    elif selection_method == "class":
-        waveform, file_sr, file_name, audio_class = fetch_example(
-            file_name=None, audio_class=audio_class
-        )
-    else:
-        waveform, file_sr, file_name, audio_class = fetch_example(
-            file_name=None, audio_class=None
-        )
-    return file_name, audio_class, waveform, file_sr
-
-
-# %%
 def plot_spectrogram(input_sr, spec, hop_length):
     fig, ax = plt.subplots(figsize=(5, 2))
     _ = specshow(
@@ -191,9 +176,11 @@ def get_feature_extractor(feature_extractor_type):
     return feature_extractor, extractor_hop_length
 
 
-# %%
-def process(file_name=None, audio_class=None, model="AST", selection_method="randomly"):
-    file_name, audio_class, waveform, file_sr = load_file(
+dataset_handler = UrbanSoundDatasetHandler()
+
+
+def process(file_name=None, audio_class=None, model="AST", selection_method="random"):
+    file_name, audio_class, waveform, file_sr = dataset_handler.load_file(
         file_name, audio_class, selection_method
     )
     feature_extractor_id = feature_extractor_mapping.get(model)
@@ -211,7 +198,6 @@ def process(file_name=None, audio_class=None, model="AST", selection_method="ran
     return fig, audio[0].numpy(), file_name, audio_class, input_sr
 
 
-# %%
 fig, audio, file_name, audio_class, input_sr = process(
     file_name="138031-2-0-45.wav", model="AST2"
 )
@@ -219,7 +205,6 @@ plt.show()
 Audio(audio, rate=input_sr)
 
 
-# %%
 def generate_gradio_elements(file_name, class_picker, model, selection_method):
     fig, audio, file_name, audio_class, input_sr = process(
         file_name, class_picker, model, selection_method
@@ -235,11 +220,9 @@ def generate_gradio_elements_filename(file_name, class_picker, model, selection_
     return generate_gradio_elements(file_name, class_picker, model, "filename")
 
 
-# %%
 spec = process("137969-2-0-37.wav")
 
-# %%
-dataset_handler = UrbanSoundDatasetHandler()
+
 classes = list(dataset_handler.class_to_class_id.keys())
 choices = [
     ("by filename", "filename"),
@@ -280,5 +263,4 @@ with gr.Blocks() as demo:
         run_on_click=True,
         fn=generate_gradio_elements,
     )
-
-# %%
+demo.launch()

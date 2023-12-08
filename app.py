@@ -26,7 +26,6 @@ feature_extractors = {
     name: AutoFeatureExtractor.from_pretrained(model_mapping[name], max_length=1024)
     for name in model_mapping.keys()
 }
-print(feature_extractors.keys())
 
 
 def resample(audio, file_sr, input_sr):
@@ -42,7 +41,7 @@ def resample(audio, file_sr, input_sr):
     return audio, num_samples, total_duration
 
 
-def preprocess(waveform, file_sr, input_sr):
+def make_spec_from_local(waveform, file_sr, input_sr):
     audio, _, duration = resample(waveform, file_sr, input_sr)
     spec_generator = SpectrogramGenerator(input_sr)
     spec = spec_generator.generate_mel_spectrogram(audio, input_sr)
@@ -50,9 +49,7 @@ def preprocess(waveform, file_sr, input_sr):
     return audio, spec
 
 
-def preprocess_with_ast_feature_extractor(
-    waveform, file_sr, output_sr, feature_extractor
-):
+def make_spec_from_ast(waveform, file_sr, output_sr, feature_extractor):
     print("preprocessing")
     raw_audio, _, duration = resample(waveform, file_sr, output_sr)
     print(raw_audio.shape)
@@ -96,27 +93,32 @@ def get_feature_extractor(model_short_name):
     return feature_extractor, extractor_hop_length
 
 
-def process(
+def make_spec_plot(
     file_name=None, audio_class=None, model_short_name="AST", selection_method="random"
 ):
+    spec, input_sr, audio, hop_length = create_spec_data(
+        file_name, audio_class, model_short_name, selection_method
+    )
+    fig = plot_spectrogram(input_sr, spec, hop_length)
+    return fig, audio[0].numpy(), file_name, audio_class, input_sr
+
+
+def create_spec_data(file_name, audio_class, model_short_name, selection_method):
     file_name, audio_class, waveform, file_sr = dataset_handler.load_file(
         file_name, audio_class, selection_method
     )
     if model_short_name in model_mapping:
         feature_extractor, hop_length = get_feature_extractor(model_short_name)
         input_sr = feature_extractor.sampling_rate
-        audio, spec = preprocess_with_ast_feature_extractor(
-            waveform, file_sr, input_sr, feature_extractor
-        )
+        audio, spec = make_spec_from_ast(waveform, file_sr, input_sr, feature_extractor)
     else:
         input_sr = 22050
-        audio, spec = preprocess(waveform, file_sr, input_sr)
+        audio, spec = make_spec_from_local(waveform, file_sr, input_sr)
         hop_length = 256
-    fig = plot_spectrogram(input_sr, spec, hop_length)
-    return fig, audio[0].numpy(), file_name, audio_class, input_sr
+    return spec, input_sr, audio, hop_length
 
 
-def predict(audio, model_short_name):
+def classify_audio_sample(audio, model_short_name):
     print("predict")
     sr, waveform = audio
     waveform = torch.tensor(waveform, dtype=torch.float32)
@@ -126,31 +128,33 @@ def predict(audio, model_short_name):
     feature_extractor, _ = get_feature_extractor(model_short_name)
     model = models[model_short_name]
     input_sr = feature_extractor.sampling_rate
-    _, spec = preprocess_with_ast_feature_extractor(
-        waveform, input_sr, input_sr, feature_extractor
-    )
+    _, spec = make_spec_from_ast(waveform, input_sr, input_sr, feature_extractor)
     with torch.no_grad():
         logits = model(torch.unsqueeze(spec, 0)).logits
     return logits.shape
 
 
-def generate_gradio_elements(
-    file_name, class_picker, model_short_name, selection_method
-):
-    fig, audio, file_name, audio_class, input_sr = process(
+class GradioUtilities:
+    @staticmethod
+    def create_gradio_elements(
         file_name, class_picker, model_short_name, selection_method
-    )
-    fig = gr.Plot(value=fig)
-    audio = gr.Audio(value=(input_sr, audio))
-    file_name = gr.Textbox(value=file_name)
-    class_picker = gr.Dropdown(value=audio_class)
-    return fig, audio, file_name, class_picker
+    ):
+        fig, audio, file_name, audio_class, input_sr = make_spec_plot(
+            file_name, class_picker, model_short_name, selection_method
+        )
+        fig = gr.Plot(value=fig)
+        audio = gr.Audio(value=(input_sr, audio))
+        file_name = gr.Textbox(value=file_name)
+        class_picker = gr.Dropdown(value=audio_class)
+        return fig, audio, file_name, class_picker
 
-
-def generate_gradio_elements_filename(file_name, class_picker, model_short_name, _):
-    return generate_gradio_elements(
-        file_name, class_picker, model_short_name, "filename"
-    )
+    @staticmethod
+    def create_gradio_elements_from_filename(
+        file_name, class_picker, model_short_name, _
+    ):
+        return GradioUtilities.create_gradio_elements(
+            file_name, class_picker, model_short_name, "filename"
+        )
 
 
 dataset_handler = UrbanSoundDatasetHandler()
@@ -178,7 +182,7 @@ with gr.Blocks() as demo:
         my_audio = gr.Audio(interactive=True)
 
     gen_button.click(
-        fn=generate_gradio_elements,
+        fn=GradioUtilities.create_gradio_elements,
         inputs=[file_name, class_picker, model_short_name, selection_method],
         outputs=[spec, my_audio, file_name, class_picker],
     )
@@ -192,18 +196,22 @@ with gr.Blocks() as demo:
         inputs=[file_name, class_picker, model_short_name, selection_method],
         outputs=[spec, my_audio, file_name, class_picker],
         run_on_click=True,
-        fn=generate_gradio_elements,
+        fn=GradioUtilities.create_gradio_elements,
     )
     infer = gr.Button("classify")
     infer_out = gr.TextArea("")
-    infer.click(fn=predict, inputs=[my_audio, model_short_name], outputs=[infer_out])
+    infer.click(
+        fn=classify_audio_sample,
+        inputs=[my_audio, model_short_name],
+        outputs=[infer_out],
+    )
 
 if __name__ == "__main__":
     demo.launch()
 
 
 def test_process():
-    fig, audio, file_name, audio_class, input_sr = process(
+    fig, audio, file_name, audio_class, input_sr = make_spec_plot(
         file_name="138031-2-0-45.wav", model_short_name="AST2"
     )
     plt.show()

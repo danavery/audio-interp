@@ -162,7 +162,6 @@ def plot_spectrogram(input_sr, spec, hop_length):
     return fig
 
 
-# %%
 def get_feature_extractor(feature_extractor_type):
     feature_extractor = feature_extractors[feature_extractor_type]
     if (

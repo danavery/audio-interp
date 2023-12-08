@@ -1,141 +1,40 @@
-import os
-import pickle
-import random
-from collections import defaultdict
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from datasets import load_dataset
 from IPython.display import Audio
 from librosa.display import specshow
-from torchaudio.transforms import AmplitudeToDB, MelSpectrogram, Resample
-from transformers import AutoFeatureExtractor
+from spectrogram_generator import SpectrogramGenerator
+from torchaudio.transforms import Resample
+from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
+from urban_sound_dataset_handler import UrbanSoundDatasetHandler
 
 import gradio as gr
 
-feature_extractor_names = [
-    "MIT/ast-finetuned-audioset-10-10-0.4593",
-    "MIT/ast-finetuned-speech-commands-v2",
-]
-feature_extractors = {
-    name: AutoFeatureExtractor.from_pretrained(name, max_length=1024)
-    for name in feature_extractor_names
-}
-feature_extractor_mapping = {
+model_mapping = {
     "AST": "MIT/ast-finetuned-audioset-10-10-0.4593",
     "AST2": "MIT/ast-finetuned-speech-commands-v2",
 }
-
-
-class UrbanSoundDatasetHandler:
-    def __init__(self, dataset_name="danavery/urbansound8k"):
-        self.dataset = load_dataset(dataset_name)
-        self.filename_to_index = defaultdict(int)
-        self.class_to_class_id = defaultdict(int)
-        self.class_id_files = defaultdict(list)
-        self._index_dataset()
-
-    def _index_dataset(self):
-        if os.path.isfile("us_indexes.pkl"):
-            with open("us_indexes.pkl", "rb") as file:
-                (
-                    self.filename_to_index,
-                    self.class_to_class_id,
-                    self.class_id_files,
-                ) = pickle.load(file)
-        else:
-            for index, item in enumerate(self.dataset["train"]):
-                self.filename_to_index[item["slice_file_name"]] = index
-                self.class_to_class_id[item["class"]] = int(item["classID"])
-                self.class_id_files[int(item["classID"])].append(
-                    item["slice_file_name"]
-                )
-            with open("us_indexes.pkl", "wb") as file:
-                pickle.dump(
-                    (
-                        self.filename_to_index,
-                        self.class_to_class_id,
-                        self.class_id_files,
-                    ),
-                    file,
-                )
-
-    def fetch_random_audio_example(self):
-        example_index = random.randint(0, len(self.dataset["train"]) - 1)
-        example = self.dataset["train"][example_index]
-        return example
-
-    def fetch_random_example_by_class(self, audio_class):
-        class_id = self.class_to_class_id[audio_class]
-        filenames = self.class_id_files.get(class_id, [])
-        selected_filename = random.choice(filenames)
-        index = self.filename_to_index.get(selected_filename)
-        example = self.dataset["train"][index]
-        return example
-
-    def fetch_example_by_filename(self, file_name):
-        example = self.dataset["train"][self.filename_to_index[file_name]]
-        return example
-
-    def get_audio_sample(self, file_name=None, audio_class=None):
-        if file_name:
-            example = self.fetch_example_by_filename(file_name)
-        elif audio_class:
-            example = self.fetch_random_example_by_class(audio_class)
-        else:
-            example = self.fetch_random_audio_example()
-
-        waveform = torch.tensor(example["audio"]["array"]).float()
-        waveform = torch.unsqueeze(waveform, 0)
-        sr = example["audio"]["sampling_rate"]
-        slice_file_name = example["slice_file_name"]
-        audio_class = example["class"]
-        return waveform, sr, slice_file_name, audio_class
-
-    def load_file(self, file_name=None, audio_class=None, selection_method="random"):
-        if selection_method == "filename":
-            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample(
-                file_name=file_name
-            )
-        elif selection_method == "class":
-            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample(
-                audio_class=audio_class
-            )
-        else:
-            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample()
-        return slice_file_name, audio_class, waveform, file_sr
-
-
-class SpectrogramGenerator:
-    def __init__(self, sample_rate, n_mels=64, n_fft=512, hop_length=256):
-        self.n_mels = n_mels
-        self.n_fft = n_fft
-        self.hop_length = hop_length
-        self.spec_transformer = MelSpectrogram(
-            sample_rate=sample_rate,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            n_mels=self.n_mels,
-        )
-        self.amplitude_to_db_transformer = AmplitudeToDB()
-
-    def generate_mel_spectrogram(self, audio, sample_rate):
-        self.spec_transformer.sample_rate = sample_rate
-        mel_spec = self.spec_transformer(audio).squeeze(0)
-        mel_spec_db = self.amplitude_to_db_transformer(mel_spec)
-        return mel_spec_db
-
-    def normalize_spectrogram(self, spec):
-        spectrogram = (spec - torch.min(spec)) / (torch.max(spec) - torch.min(spec))
-        return spectrogram
+models = {
+    name: AutoModelForAudioClassification.from_pretrained(
+        model_mapping[name],
+        num_labels=10,
+        ignore_mismatched_sizes=True,
+    )
+    for name in model_mapping.keys()
+}
+feature_extractors = {
+    name: AutoFeatureExtractor.from_pretrained(model_mapping[name], max_length=1024)
+    for name in model_mapping.keys()
+}
+print(feature_extractors.keys())
 
 
 def resample(audio, file_sr, input_sr):
     if audio.shape[0] > 1:
         audio = torch.mean(audio, dim=0, keepdim=True)
-    resampler = Resample(file_sr, input_sr)
-    audio = resampler(audio)
+    if file_sr != input_sr:
+        resampler = Resample(file_sr, input_sr)
+        audio = resampler(audio)
 
     num_samples = audio.shape[-1]
     total_duration = num_samples / input_sr
@@ -154,7 +53,9 @@ def preprocess(waveform, file_sr, input_sr):
 def preprocess_with_ast_feature_extractor(
     waveform, file_sr, output_sr, feature_extractor
 ):
+    print("preprocessing")
     raw_audio, _, duration = resample(waveform, file_sr, output_sr)
+    print(raw_audio.shape)
     inputs = feature_extractor(
         raw_audio.numpy(),
         sampling_rate=output_sr,
@@ -162,6 +63,7 @@ def preprocess_with_ast_feature_extractor(
         return_tensors="pt",
     )
     spec = inputs["input_values"]
+    print(type(spec))
     spec = torch.squeeze(spec, 0)
     spec = torch.transpose(spec, 0, 1)
     actual_frames = np.ceil(len(raw_audio[0]) / 160).astype(int)
@@ -184,12 +86,9 @@ def plot_spectrogram(input_sr, spec, hop_length):
     return fig
 
 
-def get_feature_extractor(feature_extractor_type):
-    feature_extractor = feature_extractors[feature_extractor_type]
-    if (
-        feature_extractor_type == "MIT/ast-finetuned-audioset-10-10-0.4593"
-        or feature_extractor_type == "MIT/ast-finetuned-speech-commands-v2"
-    ):
+def get_feature_extractor(model_short_name):
+    feature_extractor = feature_extractors[model_short_name]
+    if model_short_name == "AST" or model_short_name == "AST2":
         extractor_frame_shift = 10
         extractor_hop_length = feature_extractor.sampling_rate * (
             extractor_frame_shift / 1000
@@ -197,13 +96,14 @@ def get_feature_extractor(feature_extractor_type):
     return feature_extractor, extractor_hop_length
 
 
-def process(file_name=None, audio_class=None, model="AST", selection_method="random"):
+def process(
+    file_name=None, audio_class=None, model_short_name="AST", selection_method="random"
+):
     file_name, audio_class, waveform, file_sr = dataset_handler.load_file(
         file_name, audio_class, selection_method
     )
-    feature_extractor_id = feature_extractor_mapping.get(model)
-    if feature_extractor_id:
-        feature_extractor, hop_length = get_feature_extractor(feature_extractor_id)
+    if model_short_name in model_mapping:
+        feature_extractor, hop_length = get_feature_extractor(model_short_name)
         input_sr = feature_extractor.sampling_rate
         audio, spec = preprocess_with_ast_feature_extractor(
             waveform, file_sr, input_sr, feature_extractor
@@ -216,9 +116,29 @@ def process(file_name=None, audio_class=None, model="AST", selection_method="ran
     return fig, audio[0].numpy(), file_name, audio_class, input_sr
 
 
-def generate_gradio_elements(file_name, class_picker, model, selection_method):
+def predict(audio, model_short_name):
+    print("predict")
+    sr, waveform = audio
+    waveform = torch.tensor(waveform, dtype=torch.float32)
+    waveform = torch.unsqueeze(waveform, 0)
+    print("supplied sr", sr)
+    # model = models[model_mapping[model_short_name]]
+    feature_extractor, _ = get_feature_extractor(model_short_name)
+    model = models[model_short_name]
+    input_sr = feature_extractor.sampling_rate
+    _, spec = preprocess_with_ast_feature_extractor(
+        waveform, input_sr, input_sr, feature_extractor
+    )
+    with torch.no_grad():
+        logits = model(torch.unsqueeze(spec, 0)).logits
+    return logits.shape
+
+
+def generate_gradio_elements(
+    file_name, class_picker, model_short_name, selection_method
+):
     fig, audio, file_name, audio_class, input_sr = process(
-        file_name, class_picker, model, selection_method
+        file_name, class_picker, model_short_name, selection_method
     )
     fig = gr.Plot(value=fig)
     audio = gr.Audio(value=(input_sr, audio))
@@ -227,8 +147,10 @@ def generate_gradio_elements(file_name, class_picker, model, selection_method):
     return fig, audio, file_name, class_picker
 
 
-def generate_gradio_elements_filename(file_name, class_picker, model, _):
-    return generate_gradio_elements(file_name, class_picker, model, "filename")
+def generate_gradio_elements_filename(file_name, class_picker, model_short_name, _):
+    return generate_gradio_elements(
+        file_name, class_picker, model_short_name, "filename"
+    )
 
 
 dataset_handler = UrbanSoundDatasetHandler()
@@ -242,8 +164,8 @@ choices = [
 with gr.Blocks() as demo:
     with gr.Row():
         selection_method = gr.Radio(label="pick file", choices=choices, value="random")
-        model = gr.Dropdown(
-            choices=["AST", "AST2", "local"], value="local", label="Choose a model"
+        model_short_name = gr.Dropdown(
+            choices=["AST", "AST2", "local"], value="AST", label="Choose a model"
         )
     with gr.Row():
         file_name = gr.Textbox(label="slice_file_name in dataset")
@@ -253,31 +175,36 @@ with gr.Blocks() as demo:
         gen_button = gr.Button("Get Spec")
     with gr.Row():
         spec = gr.Plot(container=True)
-        my_audio = gr.Audio()
+        my_audio = gr.Audio(interactive=True)
 
     gen_button.click(
         fn=generate_gradio_elements,
-        inputs=[file_name, class_picker, model, selection_method],
+        inputs=[file_name, class_picker, model_short_name, selection_method],
         outputs=[spec, my_audio, file_name, class_picker],
     )
-    model.change(
-        fn=generate_gradio_elements_filename,
-        inputs=[file_name, class_picker, model, selection_method],
-        outputs=[spec, my_audio, file_name, class_picker],
-    )
+    # model_short_name.change(
+    #     fn=generate_gradio_elements_filename,
+    #     inputs=[file_name, class_picker, model_short_name, selection_method],
+    #     outputs=[spec, my_audio, file_name, class_picker],
+    # )
     gr.Examples(
         examples=[["100263-2-0-117.wav"], ["100852-0-0-0.wav"]],
-        inputs=[file_name, class_picker, model, selection_method],
+        inputs=[file_name, class_picker, model_short_name, selection_method],
         outputs=[spec, my_audio, file_name, class_picker],
         run_on_click=True,
         fn=generate_gradio_elements,
     )
-demo.launch()
+    infer = gr.Button("classify")
+    infer_out = gr.TextArea("")
+    infer.click(fn=predict, inputs=[my_audio, model_short_name], outputs=[infer_out])
+
+if __name__ == "__main__":
+    demo.launch()
 
 
 def test_process():
     fig, audio, file_name, audio_class, input_sr = process(
-        file_name="138031-2-0-45.wav", model="AST2"
+        file_name="138031-2-0-45.wav", model_short_name="AST2"
     )
     plt.show()
     Audio(audio, rate=input_sr)

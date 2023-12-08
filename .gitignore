@@ -2,3 +2,5 @@ training*/
 flagged/
 wandb/
 .envrc
+__pycache__/
+*.pkl

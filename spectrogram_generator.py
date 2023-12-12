@@ -1,4 +1,6 @@
+import matplotlib.pyplot as plt
 import torch
+from librosa.display import specshow
 from torchaudio.transforms import AmplitudeToDB, MelSpectrogram
 
 
@@ -24,3 +26,17 @@ class SpectrogramGenerator:
     def normalize_spectrogram(self, spec):
         spectrogram = (spec - torch.min(spec)) / (torch.max(spec) - torch.min(spec))
         return spectrogram
+
+    @staticmethod
+    def plot_spectrogram(input_sr, spec, hop_length):
+        plt.close()
+        fig, ax = plt.subplots(figsize=(5, 2))
+        _ = specshow(
+            spec.numpy(),
+            sr=input_sr,
+            hop_length=hop_length,
+            x_axis="time",
+            y_axis="mel",
+            ax=ax,
+        )
+        return fig

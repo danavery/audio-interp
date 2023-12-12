@@ -31,7 +31,7 @@ def freeze_layers(model, N):
                 param.requires_grad = False
 
 
-def get_train_val_datasets(dataset, fold=1, fraction=0.1):
+def get_train_val_datasets(dataset, fold=5, fraction=0.1):
     train_dataset = dataset.filter(lambda example: example["fold"] != fold)
     val_dataset = dataset.filter(lambda example: example["fold"] == fold)
 
@@ -86,18 +86,21 @@ def compute_metrics(eval_pred):
 
 config = {
     "output_dir": "training-0",
-    "gradient_checkpointing": False,
-    "gradient_accumulation_steps": 8,
+    "gradient_checkpointing": True,
+    "gradient_accumulation_steps": 16,
     "tf32": True,
-    "per_device_train_batch_size": 4,
+    "per_device_train_batch_size": 8,
     "logging_strategy": "epoch",
     "evaluation_strategy": "epoch",
-    "num_train_epochs": 30,
-    "learning_rate": 5e-7,
+    "num_train_epochs": 6,
+    "learning_rate": 5e-5,
     "lr_scheduler_type": "constant",
     "report_to": "none",
     "dataloader_num_workers": 8,
-    "torch_compile": True,
+    "torch_compile": False,
+    "push_to_hub": True,
+    "hub_private_repo": True,
+    "hub_model_id": "danavery/ast-finetune-urbansound8k"
 }
 wandb_run = False
 wandb_config = config.copy()
@@ -118,7 +121,8 @@ freeze_layers(model, freeze_layers_n)
 
 dataset = load_dataset("danavery/urbansound8k")["train"]
 feature_extractor = ASTFeatureExtractor()
-train_dataset, val_dataset = get_train_val_datasets(dataset, fraction=.2)
+print(feature_extractor)
+train_dataset, val_dataset = get_train_val_datasets(dataset, fraction=.1)
 
 print(model.num_parameters())
 training_args = TrainingArguments(**config)

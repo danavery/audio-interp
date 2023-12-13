@@ -86,7 +86,6 @@ class UrbanSoundDatasetHandler:
         return example
 
     def _get_audio_sample(self, file_name=None, audio_class=None):
-        logger.info(file_name)
         if file_name:
             example = self._fetch_example_by_filename(file_name)
         elif audio_class:

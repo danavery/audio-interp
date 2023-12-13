@@ -51,4 +51,3 @@ class GradioUIGenerator:
             gr.Audio((input_sr, raw_audio[0].numpy())),
             gr.Plot(fig),
         )
-

@@ -76,7 +76,6 @@ class AudioFileFeatureExtractor:
     def make_spec_from_ast(
         self, waveform, file_sr, output_sr, feature_extractor, truncate=False
     ):
-        logger.info(waveform.shape)
         # resampled_audio, _, duration = self._resample(waveform, file_sr, output_sr)
         resampled_audio = waveform
         inputs = feature_extractor(

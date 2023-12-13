@@ -21,7 +21,7 @@ class GradioUIGenerator:
         fig = gr.Plot(value=fig)
         audio = gr.Audio(value=(input_sr, audio))
         file_name = gr.Textbox(value=file_name)
-        print(audio_class)
+
         class_picker = gr.Dropdown(value=audio_class)
         return fig, audio, file_name, class_picker
 
@@ -45,70 +45,10 @@ class GradioUIGenerator:
         logits, predicted, predicted_class = self.model_handler.classify_audio_sample(
             spec, model_short_name
         )
-        fig = SpectrogramGenerator.plot_spectrogram(input_sr, spec, 160)
+        fig = SpectrogramGenerator.plot_spectrogram(input_sr, spec.transpose(0, 1), 160)
         return (
-            f"{logits}\n{predicted.item()}\n{predicted_class}",
+            f"{logits}\n{predicted}\n{predicted_class}",
             gr.Audio((input_sr, raw_audio[0].numpy())),
             gr.Plot(fig),
         )
 
-    def generate_demo(self):
-        classes = self.dataset_handler.class_to_class_id
-        class_ids = self.dataset_handler.class_id_to_class
-        print(classes)
-        print(class_ids)
-        choices = [
-            ("by slice_file_name", "filename"),
-            ("randomly from class", "class"),
-            ("randomly from entire dataset", "random"),
-        ]
-
-        with gr.Blocks() as demo:
-            with gr.Row():
-                selection_method = gr.Radio(
-                    label="pick file", choices=choices, value="class"
-                )
-                model_short_name = gr.Dropdown(
-                    choices=self.model_handler.model_mapping,
-                    value="AST",
-                    label="Choose a model",
-                )
-            with gr.Row():
-                file_name = gr.Textbox(label="slice_file_name in dataset")
-                class_picker = gr.Dropdown(
-                    choices=classes,
-                    label="Choose a class",
-                    value=0,
-                )
-                gen_button = gr.Button("Get Spec")
-            with gr.Row():
-                spec = gr.Plot(container=True)
-                my_audio = gr.Audio(interactive=True)
-
-            gen_button.click(
-                fn=self.create_gradio_elements,
-                inputs=[file_name, class_picker, model_short_name, selection_method],
-                outputs=[spec, my_audio, file_name, class_picker],
-            )
-            model_short_name.change(
-                fn=self.create_gradio_elements_from_filename,
-                inputs=[file_name, class_picker, model_short_name, selection_method],
-                outputs=[spec, my_audio, file_name, class_picker],
-            )
-            gr.Examples(
-                fn=self.create_gradio_elements,
-                examples=[["100263-2-0-117.wav"], ["100852-0-0-0.wav"]],
-                inputs=[file_name, class_picker, model_short_name, selection_method],
-                outputs=[spec, my_audio, file_name, class_picker],
-                run_on_click=True,
-            )
-            infer = gr.Button("classify")
-            infer_out = gr.TextArea("")
-            infer_audio = gr.Audio()
-            infer_spec = gr.Plot(container=True)
-            infer.click(
-                fn=self.classify_audio_sample,
-                inputs=[my_audio, model_short_name],
-                outputs=[infer_out, infer_audio, infer_spec],
-            )
-        return demo

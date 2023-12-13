@@ -1,5 +1,5 @@
 import warnings
-
+import logging
 import evaluate
 import numpy as np
 from datasets import Audio, load_dataset
@@ -11,6 +11,14 @@ from transformers import (
 )
 import wandb
 
+
+logging.basicConfig(
+    format="%(asctime)s - %(filename)s: %(lineno)d - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
+
+logger = logging.getLogger(__name__)
+logger.setLevel("CRITICAL")
 # warnings.filterwarnings("ignore")
 
 # Filter out the specific warning
@@ -31,9 +39,12 @@ def freeze_layers(model, N):
                 param.requires_grad = False
 
 
-def get_train_val_datasets(dataset, fold=5, fraction=0.1):
+def get_train_val_datasets(dataset, fold=5, fraction=1):
     train_dataset = dataset.filter(lambda example: example["fold"] != fold)
     val_dataset = dataset.filter(lambda example: example["fold"] == fold)
+
+    # train_dataset = dataset.filter(lambda example: example["slice_file_name"] == "100852-0-0-1.wav")
+    # val_dataset = dataset.filter(lambda example: example["slice_file_name"] == "100852-0-0-1.wav")
 
     # Shuffle datasets
     train_dataset = train_dataset.shuffle(seed=41)
@@ -47,20 +58,18 @@ def get_train_val_datasets(dataset, fold=5, fraction=0.1):
     train_subset = train_dataset.select(range(train_subset_size))
     val_subset = val_dataset.select(range(val_subset_size))
 
-    train_subset = train_subset.map(
-        preprocess_function, batch_size=64, batched=True, num_proc=8
-    )
-    val_subset = val_subset.map(
-        preprocess_function, batch_size=64, batched=True, num_proc=8
-    )
-
-    # Update columns
     train_subset = train_subset.cast_column("audio", Audio(sampling_rate=16000))
     train_subset = train_subset.rename_column("classID", "labels")
 
     val_subset = val_subset.cast_column("audio", Audio(sampling_rate=16000))
     val_subset = val_subset.rename_column("classID", "labels")
 
+    train_subset = train_subset.map(
+        preprocess_function, batch_size=64, batched=True, num_proc=8, keep_in_memory=True
+    )
+    val_subset = val_subset.map(
+        preprocess_function, batch_size=64, batched=True, num_proc=8, keep_in_memory=True
+    )
     return train_subset, val_subset
 
 
@@ -70,6 +79,7 @@ def preprocess_function(examples):
         audio_arrays,
         sampling_rate=feature_extractor.sampling_rate,
         padding="max_length",
+        return_tensors="pt",
     )
     return inputs
 
@@ -121,7 +131,6 @@ freeze_layers(model, freeze_layers_n)
 
 dataset = load_dataset("danavery/urbansound8k")["train"]
 feature_extractor = ASTFeatureExtractor()
-print(feature_extractor)
 train_dataset, val_dataset = get_train_val_datasets(dataset, fraction=.1)
 
 print(model.num_parameters())
@@ -136,7 +145,7 @@ trainer = Trainer(
 )
 
 trainer.train()
-
+model.push_to_hub("danavery/ast-finetune-urbansound8k")
 # with torch.no_grad():
 #     outputs = model(input_values)
 

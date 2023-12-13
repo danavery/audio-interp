@@ -2,6 +2,10 @@ import numpy as np
 import torch
 from spectrogram_generator import SpectrogramGenerator
 from torchaudio.transforms import Resample
+import logging
+
+logger = logging.getLogger(__name__)
+logger.propagate = True
 
 
 class AudioFileFeatureExtractor:
@@ -26,6 +30,7 @@ class AudioFileFeatureExtractor:
         ) = self._create_spec_data(
             file_name, audio_class, feature_extractor, selection_method, truncate=True
         )
+
         fig = SpectrogramGenerator.plot_spectrogram(input_sr, spec, hop_length)
         return fig, audio[0].numpy(), file_name, audio_class, input_sr
 
@@ -36,8 +41,6 @@ class AudioFileFeatureExtractor:
             file_name, audio_class, selection_method
         )
         waveform = torch.unsqueeze(waveform, 0)
-        print("csd", f"{file_name=}")
-        print(audio_class)
         if True:
             input_sr = feature_extractor.sampling_rate
             audio, spec = self.make_spec_from_ast(
@@ -56,7 +59,8 @@ class AudioFileFeatureExtractor:
         if file_sr != input_sr:
             resampler = Resample(file_sr, input_sr)
             audio = resampler(audio)
-
+        else:
+            logger.info("No resampling")
         num_samples = audio.shape[-1]
         total_duration = num_samples / input_sr
 
@@ -72,21 +76,18 @@ class AudioFileFeatureExtractor:
     def make_spec_from_ast(
         self, waveform, file_sr, output_sr, feature_extractor, truncate=False
     ):
-        print("preprocessing")
-        print(waveform)
-
-        print(waveform.shape)
-        raw_audio, _, duration = self._resample(waveform, file_sr, output_sr)
-        print(len(raw_audio[0]))
+        logger.info(waveform.shape)
+        # resampled_audio, _, duration = self._resample(waveform, file_sr, output_sr)
+        resampled_audio = waveform
         inputs = feature_extractor(
-            raw_audio.numpy(),
+            resampled_audio.numpy(),
             sampling_rate=output_sr,
             return_tensors="pt",
+            padding="max_length",
         )
         spec = inputs["input_values"]
         spec = torch.squeeze(spec, 0)
-        spec = torch.transpose(spec, 0, 1)
         if truncate:
-            actual_frames = np.ceil(len(raw_audio[0]) / 160).astype(int)
+            actual_frames = np.ceil(len(resampled_audio[0]) / 160).astype(int)
             spec = spec[:, :actual_frames]
-        return raw_audio, spec
+        return resampled_audio, spec

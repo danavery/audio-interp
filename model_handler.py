@@ -1,5 +1,7 @@
 import torch
 from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
+import logging
+logger = logging.getLogger(__name__)
 
 
 class ModelHandler:
@@ -39,10 +41,10 @@ class ModelHandler:
     def classify_audio_sample(self, spec, model_short_name):
         model = self.models[model_short_name]
         model.eval()
+        batched = torch.unsqueeze(spec, 0)
         with torch.no_grad():
-            logits = model(torch.unsqueeze(spec, 0)).logits
+            logits = model(batched).logits
             _, predicted = torch.max(logits, 1)
-        print(logits)
-        print(self.dataset_handler.class_id_to_class)
+        logger.info(self.dataset_handler.class_id_to_class)
         predicted_class = self.dataset_handler.class_id_to_class[predicted.item()]
-        return (logits, predicted, predicted_class)
+        return (logits, predicted.item(), predicted_class)

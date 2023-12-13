@@ -2,14 +2,18 @@ import os
 import pickle
 import random
 from collections import defaultdict
-
+import logging
 import torch
-from datasets import load_dataset
+from datasets import Audio, load_dataset
+
+logger = logging.getLogger(__name__)
+logger.propagate = True
 
 
 class UrbanSoundDatasetHandler:
     def __init__(self, dataset_name="danavery/urbansound8k", regenerate=False):
         self.dataset = load_dataset(dataset_name)
+        self.dataset = self.dataset.cast_column("audio", Audio(sampling_rate=16000))
         self.filename_to_index = defaultdict(int)
         self.class_to_class_id = {}
         self.class_id_to_class = {}
@@ -19,17 +23,16 @@ class UrbanSoundDatasetHandler:
         self._index_dataset()
 
     def load_file(self, file_name=None, audio_class=None, selection_method="random"):
-        print(selection_method)
         if selection_method == "filename":
-            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample(
+            waveform, file_sr, slice_file_name, audio_class = self._get_audio_sample(
                 file_name=file_name
             )
         elif selection_method == "class":
-            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample(
+            waveform, file_sr, slice_file_name, audio_class = self._get_audio_sample(
                 audio_class=audio_class
             )
         else:
-            waveform, file_sr, slice_file_name, audio_class = self.get_audio_sample()
+            waveform, file_sr, slice_file_name, audio_class = self._get_audio_sample()
         return slice_file_name, audio_class, waveform, file_sr
 
     def _index_dataset(self):
@@ -82,20 +85,16 @@ class UrbanSoundDatasetHandler:
         example = self.dataset["train"][self.filename_to_index[file_name]]
         return example
 
-    def get_audio_sample(self, file_name=None, audio_class=None):
+    def _get_audio_sample(self, file_name=None, audio_class=None):
+        logger.info(file_name)
         if file_name:
             example = self._fetch_example_by_filename(file_name)
         elif audio_class:
             example = self._fetch_random_example_by_class(audio_class)
         else:
             example = self._fetch_random_audio_example()
-        print(example.keys())
-        print(example["classID"])
-        waveform = torch.tensor(example["audio"]["array"]).float()
+        waveform = torch.tensor(example["audio"]["array"])
         sr = example["audio"]["sampling_rate"]
         slice_file_name = example["slice_file_name"]
         audio_class = example["class"]
-        print("should be returned:", audio_class)
-        print(slice_file_name)
-        print(waveform.shape)
         return waveform, sr, slice_file_name, audio_class

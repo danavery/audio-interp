@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 logger.propagate = True
+logger.setLevel("INFO")
 
 
 class AudioFileFeatureExtractor:
@@ -30,8 +31,7 @@ class AudioFileFeatureExtractor:
         ) = self._create_spec_data(
             file_name, audio_class, feature_extractor, selection_method, truncate=True
         )
-
-        fig = SpectrogramGenerator.plot_spectrogram(input_sr, spec, hop_length)
+        fig = SpectrogramGenerator.plot_spectrogram(input_sr, spec.transpose(0, 1), hop_length)
         return fig, audio[0].numpy(), file_name, audio_class, input_sr
 
     def _create_spec_data(
@@ -89,5 +89,5 @@ class AudioFileFeatureExtractor:
         spec = torch.squeeze(spec, 0)
         if truncate:
             actual_frames = np.ceil(len(resampled_audio[0]) / 160).astype(int)
-            spec = spec[:, :actual_frames]
+            spec = spec[:actual_frames, :]
         return resampled_audio, spec

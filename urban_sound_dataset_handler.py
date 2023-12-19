@@ -18,6 +18,7 @@ class UrbanSoundDatasetHandler:
         self.class_to_class_id = {}
         self.class_id_to_class = {}
         self.class_id_files = defaultdict(list)
+        self.file_to_class_id = {}
         self.file_name = "us_indexes.pkl"
         self.regenerate = regenerate
         self._index_dataset()
@@ -48,6 +49,7 @@ class UrbanSoundDatasetHandler:
             self.class_to_class_id[item["class"]] = int(item["classID"])
             self.class_id_to_class[int(item["classID"])] = item["class"]
             self.class_id_files[int(item["classID"])].append(item["slice_file_name"])
+            self.file_to_class_id[item["slice_file_name"]] = item["classID"]
         with open(self.file_name, "wb") as file:
             pickle.dump(
                 (
@@ -55,6 +57,7 @@ class UrbanSoundDatasetHandler:
                     self.class_to_class_id,
                     self.class_id_to_class,
                     self.class_id_files,
+                    self.file_to_class_id,
                 ),
                 file,
             )
@@ -66,6 +69,7 @@ class UrbanSoundDatasetHandler:
                 self.class_to_class_id,
                 self.class_id_to_class,
                 self.class_id_files,
+                self.file_to_class_id,
             ) = pickle.load(file)
 
     def _fetch_random_audio_example(self):
@@ -97,3 +101,7 @@ class UrbanSoundDatasetHandler:
         slice_file_name = example["slice_file_name"]
         audio_class = example["class"]
         return waveform, sr, slice_file_name, audio_class
+
+
+if __name__ == "__main__":
+    UrbanSoundDatasetHandler(regenerate=True)

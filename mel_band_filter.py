@@ -1,10 +1,45 @@
+import logging
+
 import numpy as np
 import torch
 from scipy.signal import butter, lfilter
 
+logging.basicConfig(
+    format="%(asctime)s - %(filename)s: %(lineno)d - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
+logger.setLevel("INFO")
+
 
 class MelBandFilter:
-    def __init__(self, mel_bins, sample_rate):
+    """
+    A class for applying Mel scale bandpass filtering to audio data.
+
+    This class provides methods to apply bandpass filtering to audio signals
+    based on the Mel scale, which is a perceptual scale of pitches judged by
+    listeners to be equal in distance from one another. The scale is useful
+    in audio processing, particularly for speech and music analysis.
+
+    Attributes:
+    -----------
+    mel_bins : int
+        The number of Mel bins to be used in the filter.
+    sample_rate : int
+        The sampling rate of the audio signal in Hz.
+    mel_bin_freq_ranges : list of tuples
+        The frequency range (in Hz) for each Mel bin.
+
+    Methods:
+    --------
+    filter(audio, mel_bin_range, order=2):
+        Filters the given audio signal within the specified range of Mel bins.
+
+    filter_time_slice(audio, mel_bin_range, num_time_bins, requested_time_bin):
+        Filters a specific time slice of the audio signal within the specified Mel bin range.
+    """
+
+    def __init__(self, mel_bins, sample_rate=16000):
         self.mel_bins = mel_bins
         self.sample_rate = sample_rate
         self.mel_bin_freq_ranges = self._get_mel_bin_freq_ranges()
@@ -16,6 +51,10 @@ class MelBandFilter:
             mel_bin_freq_ranges[mel_bin_range[0]][0],
             mel_bin_freq_ranges[mel_bin_range[1]][1],
         )
+        low_freq = max(low_freq, 1.0)
+        logger.info(mel_bin_range)
+        logger.info(f"{low_freq}")
+        logger.info(f"{high_freq}")
         filtered_audio = MelBandFilter._bandpass_filter(
             audio_np, low_freq, high_freq, self.sample_rate, order=order
         )
@@ -24,6 +63,8 @@ class MelBandFilter:
     def filter_time_slice(
         self, audio, mel_bin_range, num_time_bins, requested_time_bin
     ):
+        logger.info(num_time_bins)
+        logger.info(f"{requested_time_bin=}")
         time_bin_start_points = torch.linspace(
             0, len(audio), num_time_bins + 1, dtype=torch.int32
         )

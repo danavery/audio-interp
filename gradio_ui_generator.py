@@ -51,8 +51,13 @@ class GradioUIGenerator:
             file_name, class_picker, model_short_name, "filename"
         )
 
-    def classify_audio_sample(
-        self, waveform, model_short_name, file_name, class_picker
+    def classify(
+        self,
+        waveform,
+        model_short_name,
+        class_picker,
+        num_time_slices=8,
+        num_mel_slices=3,
     ):
         feature_extractor, hop_length = self.model_handler.get_feature_extractor(
             model_short_name
@@ -72,10 +77,17 @@ class GradioUIGenerator:
             most_valuable,
             most_valuable_spec,
             most_valuable_audio,
-            prop,
-        ) = self.model_handler.create_spec_variants(
-            spec, model_short_name, class_id, 5, raw_audio[0]
+            num_time_slices,
+        ) = self.model_handler.create_filtered_spec_and_audio(
+            spec,
+            model_short_name,
+            class_id,
+            num_time_slices,
+            num_mel_slices,
+            audio=raw_audio[0],
+            sample_rate=input_sr,
         )
+        most_valuable_time, most_valuable_freq = divmod(most_valuable, num_mel_slices)
         fig = SpectrogramGenerator.plot_spectrogram(
             input_sr, spec[0:400, :].transpose(0, 1), 160
         )
@@ -83,7 +95,7 @@ class GradioUIGenerator:
             input_sr, most_valuable_spec[0:400, :].transpose(0, 1), 160
         )
         return (
-            f"{logits}\n{predicted}\n{predicted_class}\nmost valuable segment: {most_valuable}/{prop-1}",
+            f"{logits}\n{predicted}\n{predicted_class}\nmost valuable segment: time {most_valuable_time}/{num_time_slices-1}, mel {most_valuable_freq}/{num_mel_slices-1}",
             gr.Audio((input_sr, raw_audio[0].numpy())),
             gr.Plot(fig),
             gr.Plot(val_fig),

@@ -18,8 +18,8 @@ logger.setLevel("INFO")
 def generate_demo(gradio_ui):
     classes = gradio_ui.dataset_handler.class_to_class_id
     class_ids = gradio_ui.dataset_handler.class_id_to_class
-    print(classes)
-    print(class_ids)
+    logger.info(classes)
+    logger.info(class_ids)
     choices = [
         ("by slice_file_name", "filename"),
         ("randomly from class", "class"),
@@ -55,19 +55,40 @@ def generate_demo(gradio_ui):
         gen_button.click(
             fn=gradio_ui.update_gradio_elements,
             inputs=[file_name, class_picker, model_short_name, selection_method],
-            outputs=[spec, my_audio, file_name, class_picker, file_name_actual, class_actual],
+            outputs=[
+                spec,
+                my_audio,
+                file_name,
+                class_picker,
+                file_name_actual,
+                class_actual,
+            ],
         )
         model_short_name.change(
             fn=gradio_ui.update_gradio_elements_from_filename,
             inputs=[file_name, class_picker, model_short_name, selection_method],
-            outputs=[spec, my_audio, file_name, class_picker, file_name_actual, class_actual],
+            outputs=[
+                spec,
+                my_audio,
+                file_name,
+                class_picker,
+                file_name_actual,
+                class_actual,
+            ],
         )
 
         gr.Examples(
             fn=gradio_ui.update_gradio_elements,
             examples=[["100263-2-0-117.wav"], ["100852-0-0-0.wav"]],
             inputs=[file_name, class_picker, model_short_name, selection_method],
-            outputs=[spec, my_audio, file_name, class_picker, file_name_actual, class_actual],
+            outputs=[
+                spec,
+                my_audio,
+                file_name,
+                class_picker,
+                file_name_actual,
+                class_actual,
+            ],
             run_on_click=True,
         )
         with gr.Row():
@@ -76,12 +97,22 @@ def generate_demo(gradio_ui):
         infer_audio = gr.Audio(visible=False)
         infer_spec = gr.Plot(visible=False, container=True)
         with gr.Row():
-            infer_most_val_spec = gr.Plot(container=True, label="Most valuable portion of spec")
-            infer_most_val_audio = gr.Audio(label="Most valuable audio by time and frequency")
+            infer_most_val_spec = gr.Plot(
+                container=True, label="Most valuable portion of spec"
+            )
+            infer_most_val_audio = gr.Audio(
+                label="Most valuable audio by time and frequency"
+            )
         infer.click(
-            fn=gradio_ui.classify_audio_sample,
-            inputs=[my_audio, model_short_name, file_name_actual, class_actual],
-            outputs=[infer_out, infer_audio, infer_spec, infer_most_val_spec, infer_most_val_audio],
+            fn=gradio_ui.classify,
+            inputs=[my_audio, model_short_name, class_picker],
+            outputs=[
+                infer_out,
+                infer_audio,
+                infer_spec,
+                infer_most_val_spec,
+                infer_most_val_audio,
+            ],
         )
         return demo
 

@@ -31,7 +31,9 @@ class AudioFileFeatureExtractor:
         ) = self._create_spec_data(
             file_name, audio_class, feature_extractor, selection_method, truncate=True
         )
-        fig = SpectrogramGenerator.plot_spectrogram(input_sr, spec.transpose(0, 1), hop_length)
+        fig = SpectrogramGenerator.plot_spectrogram(
+            input_sr, spec.transpose(0, 1), hop_length
+        )
         return fig, audio[0].numpy(), file_name, audio_class, input_sr
 
     def _create_spec_data(
@@ -73,10 +75,10 @@ class AudioFileFeatureExtractor:
     #     spec = spec_generator.normalize_spectrogram(spec)
     #     return audio, spec
 
+    @staticmethod
     def make_spec_from_ast(
-        self, waveform, file_sr, output_sr, feature_extractor, truncate=False
+        waveform, file_sr, output_sr, feature_extractor, truncate=False, hop_length=160
     ):
-        # resampled_audio, _, duration = self._resample(waveform, file_sr, output_sr)
         resampled_audio = waveform
         inputs = feature_extractor(
             resampled_audio.numpy(),
@@ -87,6 +89,6 @@ class AudioFileFeatureExtractor:
         spec = inputs["input_values"]
         spec = torch.squeeze(spec, 0)
         if truncate:
-            actual_frames = np.ceil(len(resampled_audio[0]) / 160).astype(int)
+            actual_frames = np.ceil(len(resampled_audio[0]) / hop_length).astype(int)
             spec = spec[:actual_frames, :]
         return resampled_audio, spec

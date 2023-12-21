@@ -40,7 +40,7 @@ class SpectrogramGenerator:
     @staticmethod
     def plot_spectrogram(input_sr, spec, hop_length):
         plt.close()
-        fig, ax = plt.subplots(figsize=(5, 2))
+        fig, ax = plt.subplots(figsize=(10, 4))
         _ = specshow(
             spec.numpy(),
             sr=input_sr,

@@ -1,7 +1,8 @@
 import logging
+
 import torch
-from spectrogram_generator import SpectrogramGenerator
 from mel_band_filter import MelBandFilter
+from spectrogram_generator import SpectrogramGenerator
 
 import gradio as gr
 
@@ -18,6 +19,11 @@ class GradioUIGenerator:
         self.model_handler = model_handler
         self.dataset_handler = dataset_handler
         self.mel_filter = MelBandFilter(128, 16000)
+        self.classes = dataset_handler.class_to_class_id
+        self.class_ids = dataset_handler.class_id_to_class
+        self.classes_in_class_id_order = sorted(
+            self.classes.keys(), key=lambda x: self.classes[x]
+        )
 
     def update_gradio_elements(
         self, file_name, class_picker, model_short_name, selection_method
@@ -28,7 +34,7 @@ class GradioUIGenerator:
         fig, audio, file_name, audio_class, input_sr = self.extractor.make_spec_plot(
             file_name, class_picker, feature_extractor, hop_length, selection_method
         )
-        fig = gr.Plot(value=fig)
+        fig = gr.Plot(value=fig, label=f"Mel Spectrogram for {file_name} ({audio_class})")
         audio = gr.Audio(value=(input_sr, audio))
         file_name_element = gr.Textbox(value=file_name)
         actual_file_name = gr.Text(value=file_name)
@@ -88,16 +94,21 @@ class GradioUIGenerator:
             sample_rate=input_sr,
         )
         most_valuable_time, most_valuable_freq = divmod(most_valuable, num_mel_slices)
-        fig = SpectrogramGenerator.plot_spectrogram(
-            input_sr, spec[0:400, :].transpose(0, 1), 160
-        )
+        # fig = SpectrogramGenerator.plot_spectrogram(
+        #     input_sr, spec[0:400, :].transpose(0, 1), 160
+        # )
         val_fig = SpectrogramGenerator.plot_spectrogram(
             input_sr, most_valuable_spec[0:400, :].transpose(0, 1), 160
         )
+        sm = torch.nn.Softmax()
+        probs = sm(logits[0]).cpu().numpy()
+        class_probs = dict(zip(self.classes_in_class_id_order, probs))
         return (
-            f"{logits}\n{predicted}\n{predicted_class}\nmost valuable segment: time {most_valuable_time}/{num_time_slices-1}, mel {most_valuable_freq}/{num_mel_slices-1}",
-            gr.Audio((input_sr, raw_audio[0].numpy())),
-            gr.Plot(fig),
+            f"{logits}\nmost valuable segment: time {most_valuable_time}/{num_time_slices-1}, mel {most_valuable_freq}/{num_mel_slices-1}",
+            # gr.Audio((input_sr, raw_audio[0].numpy())),
+            # gr.Plot(fig),
             gr.Plot(val_fig),
             gr.Audio((input_sr, most_valuable_audio.numpy())),
+            gr.Textbox(predicted_class),
+            gr.DataFrame(value=class_probs),
         )

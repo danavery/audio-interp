@@ -45,7 +45,7 @@ class AudioFileFeatureExtractor:
         waveform = torch.unsqueeze(waveform, 0)
         if True:
             input_sr = feature_extractor.sampling_rate
-            audio, spec = self.make_spec_from_ast(
+            audio, spec = self.make_spec_with_ast_extractor(
                 waveform, file_sr, input_sr, feature_extractor, truncate
             )
         # else:
@@ -76,7 +76,7 @@ class AudioFileFeatureExtractor:
     #     return audio, spec
 
     @staticmethod
-    def make_spec_from_ast(
+    def make_spec_with_ast_extractor(
         waveform, file_sr, output_sr, feature_extractor, truncate=False, hop_length=160
     ):
         resampled_audio = waveform
@@ -92,3 +92,13 @@ class AudioFileFeatureExtractor:
             actual_frames = np.ceil(len(resampled_audio[0]) / hop_length).astype(int)
             spec = spec[:actual_frames, :]
         return resampled_audio, spec
+
+    @staticmethod
+    def make_spec_from_waveform(waveform, feature_extractor):
+        input_sr = feature_extractor.sampling_rate
+        waveform = torch.tensor(waveform[1])
+        waveform = torch.unsqueeze(waveform, 0)
+        raw_audio, spec = AudioFileFeatureExtractor.make_spec_with_ast_extractor(
+            waveform, input_sr, input_sr, feature_extractor, truncate=False
+        )
+        return input_sr, raw_audio, spec

@@ -1,8 +1,9 @@
-import os
+import logging
 import pickle
 import random
 from collections import defaultdict
-import logging
+from pathlib import Path
+
 import torch
 from datasets import Audio, load_dataset
 
@@ -19,7 +20,7 @@ class UrbanSoundDatasetHandler:
         self.class_id_to_class = {}
         self.class_id_files = defaultdict(list)
         self.file_to_class_id = {}
-        self.file_name = "us_indexes.pkl"
+        self.index_path = Path("us_indexes.pkl")
         self.regenerate = regenerate
         self._index_dataset()
 
@@ -37,8 +38,7 @@ class UrbanSoundDatasetHandler:
         return slice_file_name, audio_class, waveform, file_sr
 
     def _index_dataset(self):
-        # will need to update this serialization for HF Spaces use
-        if os.path.isfile(self.file_name) and not self.regenerate:
+        if Path(self.index_path).is_file() and not self.regenerate:
             self._read_saved_indexes()
         else:
             self._create_saved_indexes()
@@ -50,7 +50,7 @@ class UrbanSoundDatasetHandler:
             self.class_id_to_class[int(item["classID"])] = item["class"]
             self.class_id_files[int(item["classID"])].append(item["slice_file_name"])
             self.file_to_class_id[item["slice_file_name"]] = item["classID"]
-        with open(self.file_name, "wb") as file:
+        with self.index_path.open("wb") as file:
             pickle.dump(
                 (
                     self.filename_to_index,
@@ -63,7 +63,7 @@ class UrbanSoundDatasetHandler:
             )
 
     def _read_saved_indexes(self):
-        with open(self.file_name, "rb") as file:
+        with self.index_path.open("rb") as file:
             (
                 self.filename_to_index,
                 self.class_to_class_id,

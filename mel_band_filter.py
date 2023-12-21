@@ -88,6 +88,7 @@ class MelBandFilter:
             (hz_points[i - 1], hz_points[i + 1]) for i in range(1, len(hz_points) - 1)
         ]
 
+    @staticmethod
     def _bandpass_filter(data, lowcut, highcut, sample_rate, order=2):
         nyquist = 0.5 * sample_rate
         low = lowcut / nyquist
@@ -96,12 +97,14 @@ class MelBandFilter:
         y = lfilter(b, a, data)
         return y
 
+    @staticmethod
     def _hz_to_mel(frequency, htk=False):
         if htk:
             return 2595 * np.log10(1 + frequency / 700)
         else:
             return 1127 * np.log(1 + frequency / 700)
 
+    @staticmethod
     def _mel_to_hz(mel, htk=False):
         if htk:
             return 700 * (10 ** (mel / 2595) - 1)

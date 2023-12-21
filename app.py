@@ -19,11 +19,11 @@ class App:
     def __init__(self):
         self.dataset_handler = UrbanSoundDatasetHandler(regenerate=False)
         self.model_handler = ModelHandler(self.dataset_handler)
-        self.extractor = AudioFileFeatureExtractor(
+        self.audio_file_feature_extractor = AudioFileFeatureExtractor(
             self.model_handler, self.dataset_handler
         )
         self.gradio_ui = GradioUIGenerator(
-            self.extractor, self.model_handler, self.dataset_handler
+            self.audio_file_feature_extractor, self.model_handler, self.dataset_handler, self.audio_file_feature_extractor
         )
 
     def generate_demo(self):
@@ -116,13 +116,13 @@ class App:
                 with gr.Column(scale=0):
                     gr.HTML("<h2>2) Then run the audio through the model:</h2>")
                     num_time_slices = gr.Dropdown(
-                        choices=range(1, 6),
+                        choices=range(1, 7),
                         value=3,
                         scale=1,
                         label="Number of Time Slices",
                     )
                     num_mel_slices = gr.Dropdown(
-                        choices=range(1, 6),
+                        choices=range(1, 7),
                         value=3,
                         scale=1,
                         label="Number of Mel Slices",
@@ -185,4 +185,5 @@ class App:
 
 app = App()
 demo = app.generate_demo()
-demo.launch()
+if __name__ == "__main__":
+    demo.launch()

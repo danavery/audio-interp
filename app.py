@@ -17,11 +17,15 @@ logger.setLevel("INFO")
 
 class App:
     def __init__(self):
+        logger.info("starting usdh")
         self.dataset_handler = UrbanSoundDatasetHandler(regenerate=False)
+        logger.info('starting model handler')
         self.model_handler = ModelHandler(self.dataset_handler)
+        logger.info("starting feature extractor")
         self.audio_file_feature_extractor = AudioFileFeatureExtractor(
             self.model_handler, self.dataset_handler
         )
+        logger.info("starting Gradio generator")
         self.gradio_ui = GradioUIGenerator(
             self.audio_file_feature_extractor, self.model_handler, self.dataset_handler, self.audio_file_feature_extractor
         )

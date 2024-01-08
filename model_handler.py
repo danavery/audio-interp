@@ -103,7 +103,7 @@ class ModelHandler:
             time_slice_size,
             most_valuable_time,
             mel_bands,
-            num_mel_portions=num_mel_slices,
+            num_mel_slices=num_mel_slices,
             most_valuable_mel_index=most_valuable_mel_slice,
         )
         val_audio = ModelHandler.filter_audio(

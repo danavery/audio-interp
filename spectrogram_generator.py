@@ -78,12 +78,12 @@ class SpectrogramGenerator:
         segment_size,
         most_valuable_time,
         num_mel_bands,
-        num_mel_portions,
+        num_mel_slices,
         most_valuable_mel_index,
     ):
         start_time = most_valuable_time * segment_size
         end_time = start_time + segment_size
-        mel_portion_size = num_mel_bands // num_mel_portions
+        mel_portion_size = num_mel_bands // num_mel_slices
         start_mel = mel_portion_size * most_valuable_mel_index
         end_mel = start_mel + mel_portion_size
         logger.info(f"{start_time=} {end_time=} {start_mel=} {end_mel=}")

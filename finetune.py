@@ -39,7 +39,7 @@ def freeze_layers(model, N):
                 param.requires_grad = False
 
 
-def get_train_val_datasets(dataset, fold=5, fraction=1):
+def get_train_val_datasets(dataset, fold=5, fraction=.1):
     train_dataset = dataset.filter(lambda example: example["fold"] != fold)
     val_dataset = dataset.filter(lambda example: example["fold"] == fold)
 
@@ -99,11 +99,11 @@ config = {
     "gradient_checkpointing": True,
     "gradient_accumulation_steps": 16,
     "tf32": True,
-    "per_device_train_batch_size": 8,
+    "per_device_train_batch_size": 12,
     "logging_strategy": "epoch",
     "evaluation_strategy": "epoch",
-    "num_train_epochs": 6,
-    "learning_rate": 5e-5,
+    "num_train_epochs": 12,
+    "learning_rate": 1e-5,
     "lr_scheduler_type": "constant",
     "report_to": "none",
     "dataloader_num_workers": 8,
@@ -112,7 +112,7 @@ config = {
     "hub_private_repo": True,
     "hub_model_id": "danavery/ast-finetune-urbansound8k"
 }
-wandb_run = False
+wandb_run = True
 wandb_config = config.copy()
 freeze_layers_n = 0
 wandb_config["frozen_layers"] = freeze_layers_n
@@ -121,31 +121,33 @@ if wandb_run:
     config["report_to"] = "wandb"
     wandb.init(project="finetune", config=wandb_config)
 
-model = AutoModelForAudioClassification.from_pretrained(
-    "MIT/ast-finetuned-audioset-10-10-0.4593",
-    num_labels=10,
-    ignore_mismatched_sizes=True,
-)
+for val_fold in range(1, 11):
+    model = AutoModelForAudioClassification.from_pretrained(
+        "MIT/ast-finetuned-audioset-10-10-0.4593",
+        num_labels=10,
+        ignore_mismatched_sizes=True,
+    )
 
-freeze_layers(model, freeze_layers_n)
+    freeze_layers(model, freeze_layers_n)
 
-dataset = load_dataset("danavery/urbansound8k")["train"]
-feature_extractor = ASTFeatureExtractor()
-train_dataset, val_dataset = get_train_val_datasets(dataset, fraction=.1)
+    dataset = load_dataset("danavery/urbansound8k")["train"]
+    feature_extractor = ASTFeatureExtractor()
 
-print(model.num_parameters())
-training_args = TrainingArguments(**config)
+    train_dataset, val_dataset = get_train_val_datasets(dataset, fraction=.3, fold=val_fold)
 
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=val_dataset,
-    compute_metrics=compute_metrics,
-)
+    print(model.num_parameters())
+    training_args = TrainingArguments(**config)
 
-trainer.train()
-model.push_to_hub("danavery/ast-finetune-urbansound8k")
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=val_dataset,
+        compute_metrics=compute_metrics,
+    )
+
+    trainer.train()
+# model.push_to_hub("danavery/ast-finetune-urbansound8k")
 # with torch.no_grad():
 #     outputs = model(input_values)
 

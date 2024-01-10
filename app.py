@@ -37,7 +37,7 @@ class App:
         logger.info(classes)
         logger.info(class_ids)
         choices = [
-            ("by slice_file_name", "filename"),
+            ("by filename", "filename"),
             ("randomly from class", "class"),
             ("randomly from entire dataset", "random"),
         ]
@@ -62,8 +62,8 @@ class App:
                         label="Choose a class",
                         value="dog_bark",
                     )
-                    gr.HTML("OR<br><br>Fill this in and choose 'by slice_file_name'")
-                    file_name = gr.Textbox(label="slice_file_name in dataset")
+                    gr.HTML("OR<br><br>Fill this in and choose 'by filename'")
+                    file_name = gr.Textbox(label="filename")
                     gen_button = gr.Button("Get Audio and Generate Spectrogram")
                 with gr.Column(scale=2):
                     spec = gr.Plot(container=True, label="Mel spectrogram of file")

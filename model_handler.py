@@ -1,12 +1,14 @@
 import logging
+import os
 
 import torch
-from mel_band_filter import MelBandFilter
-from spectrogram_generator import SpectrogramGenerator
 from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
 
+from mel_band_filter import MelBandFilter
+from spectrogram_generator import SpectrogramGenerator
+
 logger = logging.getLogger(__name__)
-device = "cuda" if torch.cuda.is_available else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class ModelHandler:
@@ -49,13 +51,16 @@ class ModelHandler:
         self.models = {}
         self.feature_extractors = {}
         self.dataset_handler = dataset_handler
+        self.token = os.environ.get("HF_API_TOKEN", True)
+        logger.info(self.token)
 
     def get_feature_extractor(self, model_short_name):
         if model_short_name not in self.feature_extractors:
             self.feature_extractors[
                 model_short_name
             ] = AutoFeatureExtractor.from_pretrained(
-                self.model_mapping[model_short_name]
+                self.model_mapping[model_short_name],
+                use_auth_token=self.token,
             )
         feature_extractor = self.feature_extractors[model_short_name]
         if (
@@ -170,6 +175,7 @@ class ModelHandler:
                 self.model_mapping[model_short_name],
                 num_labels=10,
                 ignore_mismatched_sizes=True,
+                use_auth_token=self.token,
             ).to(
                 device
             )

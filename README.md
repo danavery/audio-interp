@@ -45,7 +45,7 @@ Brute force, basically. For example, for a 3-frequency, 3-time slice, the origin
 
 ## Why?
 
-Transformer interpretability is difficult and just plain interesting. I wanted to see if it was possible to isolate an important portion of an audio signal to a particular classification task.
+Transformer interpretability is difficult and just plain interesting, with audio transformers even more so. I wanted to see if it was possible to isolate an important portion of an audio signal by both time and frequency to a particular classification task, and more importantly, to _listen_ to it.
 
 This general technique seems worth looking into as a method of data augmentation for small datasets. Making and mixing a set of audio clip portions that represent strong examples of particular classes might be a way to generate more training data.
 

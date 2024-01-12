@@ -82,7 +82,7 @@ class AudioFileFeatureExtractor:
         waveform = waveform.transpose(0, 1)
         # convert to mono if multi-channel
         if waveform.shape[0] > 1:
-            waveform = torch.mean(waveform, dim=0, keepdim=True)
+            waveform = torch.mean(waveform, dim=0, keepdim=True, dtype=torch.float)
         return waveform
 
     def _resample(self, audio, file_sample_rate, sample_rate):
@@ -121,10 +121,20 @@ class AudioFileFeatureExtractor:
         return waveform, spec
 
     def make_spec_from_audio_tuple(self, audio, feature_extractor):
-        # input is (sr, waveform), so convert waveform to tensor
+        file_sample_rate = audio[0]
         waveform = torch.tensor(audio[1])
-        waveform = torch.unsqueeze(waveform, 0)
+        if waveform.dtype == torch.int16:
+            waveform = self.to_float_and_normalize(waveform)
+        waveform = self._preprocess_waveform(waveform)
+        waveform = self._resample(
+            waveform, file_sample_rate, feature_extractor.sampling_rate
+        )
         raw_audio, spec = self._make_spec_with_ast_extractor(
             waveform, feature_extractor, truncate=False
         )
         return feature_extractor.sampling_rate, raw_audio, spec
+
+    def to_float_and_normalize(self, waveform):
+        waveform = waveform.to(torch.float)
+        waveform = waveform / torch.iinfo(torch.int16).max
+        return waveform

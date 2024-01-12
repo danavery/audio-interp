@@ -8,13 +8,6 @@ from mel_band_filter import MelBandFilter
 from spectrogram_generator import SpectrogramGenerator
 
 logger = logging.getLogger(__name__)
-if torch.cuda.is_available():
-    device = "cuda"
-elif torch.backends.mps.is_available():
-    device = "mps"
-else:
-    device = "cpu"
-logger.info(f"{device=}")
 
 
 
@@ -60,6 +53,16 @@ class ModelHandler:
         self.dataset_handler = dataset_handler
         self.token = os.environ.get("HF_API_TOKEN", True)
         logger.info(self.token)
+        self.device = self._get_device()
+        logger.info(f"{self.device=}")
+
+    def _get_device(self):
+        if torch.cuda.is_available():
+            return "cuda"
+        elif torch.backends.mps.is_available():
+            return "mps"
+        else:
+            return "cpu"
 
     def get_feature_extractor(self, model_short_name):
         if model_short_name not in self.feature_extractors:
@@ -107,15 +110,14 @@ class ModelHandler:
         )
         logits = self._run_inference_on_variants(model_short_name, spec_variants)
         (
-            most_valuable,
-            most_valuable_time,
+            most_valuable_time_slice,
             most_valuable_mel_slice,
         ) = self._find_most_valuable_segment(actual_class_id, num_mel_slices, logits)
-        logger.info(f"{most_valuable_mel_slice=}, {most_valuable_time=}")
+        logger.info(f"{most_valuable_mel_slice=}, {most_valuable_time_slice=}")
         most_valuable_spec = SpectrogramGenerator.pad_spec(
             spec,
             time_slice_size,
-            most_valuable_time,
+            most_valuable_time_slice,
             mel_bands,
             num_mel_slices=num_mel_slices,
             most_valuable_mel_index=most_valuable_mel_slice,
@@ -126,23 +128,23 @@ class ModelHandler:
             mel_bands,
             num_mel_slices,
             most_valuable_mel_slice,
-            most_valuable_time,
+            most_valuable_time_slice,
         )
         return (
             most_valuable_spec,
             val_audio,
             num_time_slices,
-            most_valuable_time,
+            most_valuable_time_slice,
             most_valuable_mel_slice,
         )
 
     def _find_most_valuable_segment(self, actual_class_id, num_mel_slices, logits):
         most_valuable = ModelHandler.get_most_valuable(actual_class_id, logits)
         logger.info(f"{most_valuable=}")
-        most_valuable_time, most_valuable_mel_slice = divmod(
+        most_valuable_time_slice, most_valuable_mel_slice = divmod(
             most_valuable, num_mel_slices
         )
-        return most_valuable, most_valuable_time, most_valuable_mel_slice
+        return most_valuable_time_slice, most_valuable_mel_slice
 
     def _generate_spec_variants(
         self, spec, num_time_slices, num_mel_slices, sample_rate, time_slice_size
@@ -162,14 +164,14 @@ class ModelHandler:
         model = self.models[model_short_name]
         logger.info(ModelHandler.get_model_device(model))
         model.eval()
-        spec_variants = spec_variants.to(device)
+        spec_variants = spec_variants.to(self.device)
         with torch.no_grad():
             logits = model(spec_variants).logits
         return logits
 
     def _perform_classification(self, spec, model):
         model.eval()
-        batched = torch.unsqueeze(spec, 0).to(device)
+        batched = torch.unsqueeze(spec, 0).to(self.device)
         with torch.no_grad():
             logits = model(batched).logits
             _, predicted = torch.max(logits, 1)
@@ -186,7 +188,7 @@ class ModelHandler:
                 ignore_mismatched_sizes=True,
                 use_auth_token=self.token,
             ).to(
-                device
+                self.device
             )
         return self.models[model_short_name]
 
@@ -224,7 +226,7 @@ class ModelHandler:
 
     @staticmethod
     def calculate_softmax_probs(logits, class_names):
-        sm = torch.nn.Softmax()
+        sm = torch.nn.Softmax(dim=1)
         probs = sm(logits[0]).cpu().numpy()
         class_probs = dict(zip(class_names, probs))
         return class_probs

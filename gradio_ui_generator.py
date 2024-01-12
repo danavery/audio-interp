@@ -1,6 +1,5 @@
 import logging
 
-from audio_file_feature_extractor import AudioFileFeatureExtractor
 from mel_band_filter import MelBandFilter
 from model_handler import ModelHandler
 from spectrogram_generator import SpectrogramGenerator
@@ -60,7 +59,7 @@ class GradioUIGenerator:
                         spec,
                         my_audio,
                     )
-            self.gen_button_handler(
+            self.make_spec_button_handler(
                 model_short_name,
                 selection_method,
                 class_picker,
@@ -247,7 +246,7 @@ class GradioUIGenerator:
             outputs=[spec],
         )
 
-    def gen_button_handler(
+    def make_spec_button_handler(
         self,
         model_short_name,
         selection_method,
@@ -258,7 +257,7 @@ class GradioUIGenerator:
         my_audio,
     ):
         gen_button.click(
-            fn=self.generate_spec_from_example,
+            fn=self.display_spec_from_dataset,
             inputs=[file_name, class_picker, model_short_name, selection_method],
             outputs=[
                 spec,
@@ -278,7 +277,7 @@ class GradioUIGenerator:
         my_audio,
     ):
         gr.Examples(
-            fn=self.generate_spec_from_example,
+            fn=self.display_spec_from_dataset,
             label="Preselected examples:",
             examples=[["100263-2-0-117.wav"], ["100852-0-0-0.wav"]],
             inputs=[
@@ -327,10 +326,10 @@ class GradioUIGenerator:
         )
         return model_short_name
 
-    def generate_spec_from_example(
+    def display_spec_from_dataset(
         self, file_name, class_picker, model_short_name, selection_method
     ):
-        logger.info("gsfe")
+        logger.info("dsfd")
         feature_extractor, hop_length = self.model_handler.get_feature_extractor(
             model_short_name
         )
@@ -396,7 +395,7 @@ class GradioUIGenerator:
             input_sr,
             raw_audio,
             spec,
-        ) = AudioFileFeatureExtractor.make_spec_from_waveform(
+        ) = self.audio_file_feature_extractor.make_spec_from_audio_tuple(
             waveform, feature_extractor
         )
 

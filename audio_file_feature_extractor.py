@@ -23,86 +23,85 @@ class AudioFileFeatureExtractor:
     ):
         (
             spec,
-            input_sr,
-            audio,
+            waveform,
             file_name,
             audio_class,
         ) = self._create_spec_data_from_filename(
             file_name, audio_class, feature_extractor, selection_method, truncate=True
         )
-        logger.info(input_sr)
-        fig = SpectrogramGenerator.plot_spectrogram(input_sr, spec, hop_length)
-        logger.info(f"{audio.shape} {file_name}, {input_sr}")
-        return fig, audio.numpy(), file_name, audio_class, input_sr
+        sample_rate = feature_extractor.sampling_rate
+        logger.info(sample_rate)
+        fig = SpectrogramGenerator.plot_spectrogram(sample_rate, spec, hop_length)
+        logger.info(f"{waveform.shape} {file_name}, {sample_rate}")
+        return fig, waveform.numpy(), file_name, audio_class, sample_rate
 
     def make_spec_from_input(
         self, feature_extractor, hop_length, truncate=True, audio=None
     ):
-        sr, waveform = audio
+        file_sample_rate, waveform = audio
         waveform = torch.tensor(
             waveform, dtype=torch.float
         )  # [samples, channels] or [samples] from Gradio Audio component
-        # convert [samples] to [samples, channels]
-        waveform = self._fix_waveform_channels(waveform)
-        logger.info(waveform.shape)
-        waveform, _, _ = self._resample(waveform, 16000)
-        logger.info(waveform.shape)
-        input_sr, audio, spec = self.make_spec(feature_extractor, truncate, waveform)
-        fig = SpectrogramGenerator.plot_spectrogram(input_sr, spec, hop_length)
+        waveform = self._preprocess_waveform(waveform)
+        waveform = self._resample(
+            waveform, file_sample_rate, feature_extractor.sampling_rate
+        )
+        audio, spec = self._make_spec_with_ast_extractor(
+            feature_extractor, truncate, waveform
+        )
+        fig = SpectrogramGenerator.plot_spectrogram(
+            feature_extractor.sampling_rate, spec, hop_length
+        )
         return fig
-
-    def _fix_waveform_channels(self, waveform):
-        logger.info(f"{waveform.shape=}")
-        if len(waveform.shape) == 1:
-            waveform = waveform.unsqueeze(1)
-        # then transpose it to [channels, samples]
-        waveform = waveform.transpose(0, 1)
-        return waveform
 
     def _create_spec_data_from_filename(
         self, file_name, audio_class, feature_extractor, selection_method, truncate
     ):
-        file_name, audio_class, waveform, file_sr = self.dataset_handler.load_file(
-            file_name, audio_class, selection_method
-        )
+        (
+            file_name,
+            audio_class,
+            waveform,
+            file_sample_rate,
+        ) = self.dataset_handler.load_file(file_name, audio_class, selection_method)
         logger.info(waveform.shape)
-        waveform = self._fix_waveform_channels(waveform)
-
-        input_sr, audio, spec = self.make_spec(feature_extractor, truncate, waveform)
-        return spec, input_sr, audio, file_name, audio_class
-
-    def make_spec(self, feature_extractor, truncate, waveform):
-        logger.info(waveform.shape)
-        input_sr = feature_extractor.sampling_rate
-        audio, spec = self.make_spec_with_ast_extractor(
-            waveform, input_sr, feature_extractor, truncate
+        waveform = self._preprocess_waveform(waveform)
+        waveform = self._resample(
+            waveform, file_sample_rate, feature_extractor.sampling_rate
         )
-        return input_sr, audio, spec
+        audio, spec = self._make_spec_with_ast_extractor(
+            waveform, feature_extractor, truncate
+        )
+        return spec, audio, file_name, audio_class
 
-    @staticmethod
-    def _resample(audio, file_sr, input_sr=16000):
-        logger.info(f"{audio.shape=} {file_sr=}")
-        if audio.shape[0] > 1:
-            audio = torch.mean(audio, dim=0, keepdim=True)
-        if file_sr != input_sr:
-            resampler = Resample(file_sr, input_sr)
+    def _preprocess_waveform(self, waveform):
+        logger.info(f"{waveform.shape=}")
+        # convert [samples] to [samples, channels]
+        if len(waveform.shape) == 1:
+            waveform = waveform.unsqueeze(1)
+        # transpose it to [channels, samples]
+        waveform = waveform.transpose(0, 1)
+        # convert to mono if multi-channel
+        if waveform.shape[0] > 1:
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
+        return waveform
+
+    def _resample(self, audio, file_sample_rate, sample_rate):
+        logger.info(f"{audio.shape=} {file_sample_rate=}")
+
+        if file_sample_rate != sample_rate:
+            resampler = Resample(file_sample_rate, sample_rate)
             audio = resampler(audio)
         else:
             logger.info("No resampling")
-        num_samples = audio.shape[1]
-        total_duration = num_samples / input_sr
         logger.info(audio.shape)
-        return audio, num_samples, total_duration
+        return audio
 
-    @staticmethod
-    def make_spec_with_ast_extractor(
-        waveform, output_sr, feature_extractor, truncate=False, hop_length=160
+    def _make_spec_with_ast_extractor(
+        self, waveform, feature_extractor, truncate=False, hop_length=160
     ):
-        resampled_audio = waveform  # [1, samples]
-        logger.info(resampled_audio.shape)
+        logger.info(waveform.shape)  # [1, samples]
         inputs = feature_extractor(
-            resampled_audio.numpy(),
-            sampling_rate=output_sr,
+            waveform.numpy(),
             return_tensors="pt",
             padding="max_length",
         )
@@ -111,22 +110,21 @@ class AudioFileFeatureExtractor:
         spec = torch.squeeze(spec, 0)  # [frames, freq_bins]
         logger.info(spec.shape)
         if truncate:
-            logger.info(f"{resampled_audio.shape[1]=} {hop_length=}")
+            logger.info(f"{waveform.shape[1]=} {hop_length=}")
             actual_frames = torch.ceil(
-                torch.tensor(resampled_audio.shape[1] / hop_length)
+                torch.tensor(waveform.shape[1] / hop_length)
             ).int()
             logger.info(actual_frames)
             spec = spec[:actual_frames, :]
 
         logger.info(f"{spec.shape=}")
-        return resampled_audio, spec
+        return waveform, spec
 
-    @staticmethod
-    def make_spec_from_waveform(waveform, feature_extractor):
-        input_sr = feature_extractor.sampling_rate
-        waveform = torch.tensor(waveform[1])
+    def make_spec_from_audio_tuple(self, audio, feature_extractor):
+        # input is (sr, waveform), so convert waveform to tensor
+        waveform = torch.tensor(audio[1])
         waveform = torch.unsqueeze(waveform, 0)
-        raw_audio, spec = AudioFileFeatureExtractor.make_spec_with_ast_extractor(
-            waveform, input_sr, feature_extractor, truncate=False
+        raw_audio, spec = self._make_spec_with_ast_extractor(
+            waveform, feature_extractor, truncate=False
         )
-        return input_sr, raw_audio, spec
+        return feature_extractor.sampling_rate, raw_audio, spec

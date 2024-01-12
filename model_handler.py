@@ -225,7 +225,7 @@ class ModelHandler:
 
     @staticmethod
     def calculate_softmax_probs(logits, class_names):
-        sm = torch.nn.Softmax()
+        sm = torch.nn.Softmax(dim=0)
         probs = sm(logits[0]).cpu().numpy()
         class_probs = dict(zip(class_names, probs))
         return class_probs

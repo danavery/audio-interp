@@ -47,7 +47,7 @@ class AudioFileFeatureExtractor:
             waveform, file_sample_rate, feature_extractor.sampling_rate
         )
         audio, spec = self._make_spec_with_ast_extractor(
-            feature_extractor, truncate, waveform
+            waveform, feature_extractor, truncate
         )
         fig = SpectrogramGenerator.plot_spectrogram(
             feature_extractor.sampling_rate, spec, hop_length

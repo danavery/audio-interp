@@ -220,7 +220,7 @@ class ModelHandler:
     def mel_slice_to_mel_range(num_mels, num_mel_slices, mel_slice_index):
         mel_slice_size = num_mels // num_mel_slices
         mel_range_start = mel_slice_size * mel_slice_index
-        mel_range_end = mel_range_start + mel_slice_size
+        mel_range_end = mel_range_start + mel_slice_size - 1
         return (mel_range_start, mel_range_end)
 
     @staticmethod

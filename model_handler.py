@@ -45,7 +45,7 @@ class ModelHandler:
     classify_audio_sample(spec, model_short_name):
         Classifies a spectrogram using the specified model and returns the logits, predicted class ID, and predicted class name.
 
-    create_filtered_spec_and_audio(spec, model_short_name, actual_class_id, num_time_slices=10, audio=None, actual_length=400):
+    create_filtered_spec_and_audio(spec, model_short_name, actual_class_id, num_time_slices=10, audio=None):
         Creates and returns filtered spectrogram variants, most valuable segment, padded spectrogram, and filtered audio for a given audio sample.
     """
 
@@ -96,9 +96,11 @@ class ModelHandler:
         num_mel_slices=2,
         sample_rate=16000,
         audio=None,
-        actual_length=400,
     ):
+        logger.info(spec.shape)
         mel_bands = spec.shape[1]
+        actual_length = len(audio) // 160
+        logger.info(actual_length)
         time_slice_size = actual_length // num_time_slices
         spec_variants = self._generate_spec_variants(
             spec, num_time_slices, num_mel_slices, sample_rate, time_slice_size

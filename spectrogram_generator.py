@@ -40,9 +40,10 @@ class SpectrogramGenerator:
     @staticmethod
     def plot_spectrogram(input_sr, spec, hop_length):
         plt.close()
+        logger.info(spec.shape)
         fig, ax = plt.subplots(figsize=(10, 4))
         _ = specshow(
-            spec.numpy(),
+            spec.numpy().T,
             sr=input_sr,
             hop_length=hop_length,
             x_axis="time",
@@ -81,6 +82,7 @@ class SpectrogramGenerator:
         num_mel_slices,
         most_valuable_mel_index,
     ):
+        logger.info(spec.shape)
         start_time = most_valuable_time * segment_size
         end_time = start_time + segment_size
         mel_portion_size = num_mel_bands // num_mel_slices

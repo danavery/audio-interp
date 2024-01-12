@@ -62,13 +62,11 @@ class SpectrogramGenerator:
         for i in range(num_time_slices):
             start = i * time_slice_size
             end = start + time_slice_size
-            modified_spec = spec.clone()
-            modified_spec[start:end, :] = 0.4670
             for mel_slice_index in range(num_mel_slices):
                 mel_start = mel_slice_index * mel_slice_size
                 mel_end = mel_start + mel_slice_size
-                filtered_spec = modified_spec.clone()
-                filtered_spec[:, mel_start:mel_end] = 0.4670
+                filtered_spec = spec.clone()
+                filtered_spec[start:end, mel_start:mel_end] = 0.4670
                 spec_variants.append(torch.tensor(filtered_spec))
         spec_variants = torch.stack(spec_variants)
         return spec_variants

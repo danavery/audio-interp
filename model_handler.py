@@ -10,7 +10,6 @@ from spectrogram_generator import SpectrogramGenerator
 logger = logging.getLogger(__name__)
 
 
-
 class ModelHandler:
     """
     A handler class for managing and utilizing audio classification models.
@@ -226,7 +225,7 @@ class ModelHandler:
 
     @staticmethod
     def calculate_softmax_probs(logits, class_names):
-        sm = torch.nn.Softmax(dim=1)
+        sm = torch.nn.Softmax()
         probs = sm(logits[0]).cpu().numpy()
         class_probs = dict(zip(class_names, probs))
         return class_probs

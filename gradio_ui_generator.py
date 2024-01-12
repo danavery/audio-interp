@@ -193,13 +193,13 @@ class GradioUIGenerator:
     def time_and_mel_slice_selector(self):
         num_time_slices = gr.Dropdown(
             choices=range(1, 7),
-            value=3,
+            value=4,
             scale=1,
             label="Number of Time Slices",
         )
         num_mel_slices = gr.Dropdown(
             choices=range(1, 7),
-            value=3,
+            value=4,
             scale=1,
             label="Number of Mel Slices",
         )

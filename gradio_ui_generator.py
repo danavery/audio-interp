@@ -267,6 +267,9 @@ class GradioUIGenerator:
             ],
         )
 
+    def display_spec_from_dataset_filename_wrapper(self, file_name, class_picker, model_short_name):
+        return self.display_spec_from_dataset(file_name, class_picker, model_short_name, "filename")
+
     def example_selector(
         self,
         model_short_name,
@@ -276,15 +279,15 @@ class GradioUIGenerator:
         spec,
         my_audio,
     ):
+
         gr.Examples(
-            fn=self.display_spec_from_dataset,
+            fn=self.display_spec_from_dataset_filename_wrapper,
             label="Preselected examples:",
             examples=[["100263-2-0-117.wav"], ["100852-0-0-0.wav"]],
             inputs=[
                 file_name,
                 class_picker,
                 model_short_name,
-                selection_method,
             ],
             outputs=[
                 spec,

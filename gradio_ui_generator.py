@@ -267,8 +267,12 @@ class GradioUIGenerator:
             ],
         )
 
-    def display_spec_from_dataset_filename_wrapper(self, file_name, class_picker, model_short_name):
-        return self.display_spec_from_dataset(file_name, class_picker, model_short_name, "filename")
+    def display_spec_from_dataset_filename_wrapper(
+        self, file_name, class_picker, model_short_name
+    ):
+        return self.display_spec_from_dataset(
+            file_name, class_picker, model_short_name, "filename"
+        )
 
     def example_selector(
         self,
@@ -279,7 +283,6 @@ class GradioUIGenerator:
         spec,
         my_audio,
     ):
-
         gr.Examples(
             fn=self.display_spec_from_dataset_filename_wrapper,
             label="Preselected examples:",

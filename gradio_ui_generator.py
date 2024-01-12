@@ -30,7 +30,6 @@ class GradioUIGenerator:
         )
 
     def generate_demo(self):
-        intro_markdown = self.get_intro_markdown()
         classes = self.classes
         class_ids = self.class_ids
         logger.info(classes)
@@ -44,151 +43,289 @@ class GradioUIGenerator:
         with gr.Blocks() as demo:
             with gr.Row():
                 with gr.Column(scale=1):
-                    model_short_name = gr.Dropdown(
-                        choices=self.model_handler.model_mapping,
-                        value="FT",
-                        label="Choose a model to generate spectrogram and run classification with:",
-                        visible=False,
-                    )
-                    gr.HTML("<h2>1) Choose a file from the UrbanSound8K dataset:</h2>")
-                    selection_method = gr.Radio(
-                        label="Sound clip lookup:", choices=choices, value="class"
-                    )
-
-                    gr.HTML("Fill this in and choose 'randomly from class' above")
-                    class_picker = gr.Dropdown(
-                        choices=classes,
-                        label="Choose a class",
-                        value="dog_bark",
-                    )
-                    gr.HTML("OR<br><br>Fill this in and choose 'by filename'")
-                    file_name = gr.Textbox(label="filename")
+                    model_short_name = self.model_selector()  # not visible for now
+                    selection_method = self.file_selector(choices)
+                    class_picker = self.class_selector(classes)
+                    file_name = self.filename_input()
                     gen_button = gr.Button("Get Audio and Generate Spectrogram")
                 with gr.Column(scale=2):
-                    spec = gr.Plot(container=True, label="Mel spectrogram of file")
+                    spec = self.spectrogram_plot()
                     with gr.Column():
-                        # file_name_actual = gr.Textbox(label="current file name")
-                        # class_actual = gr.Textbox(label="current class")
-                        my_audio = gr.Audio(interactive=True, label="File audio")
-                    gr.Examples(
-                        fn=self.generate_spec_from_example,
-                        label="Preselected examples:",
-                        examples=[["100263-2-0-117.wav"], ["100852-0-0-0.wav"]],
-                        inputs=[
-                            file_name,
-                            class_picker,
-                            model_short_name,
-                            selection_method,
-                        ],
-                        outputs=[
-                            spec,
-                            my_audio,
-                            file_name,
-                            class_picker,
-                        ],
-                        run_on_click=True,
+                        my_audio = self.audio_player()
+                    self.example_selector(
+                        model_short_name,
+                        selection_method,
+                        class_picker,
+                        file_name,
+                        spec,
+                        my_audio,
                     )
-            gen_button.click(
-                fn=self.generate_spec_from_example,
-                inputs=[file_name, class_picker, model_short_name, selection_method],
-                outputs=[
-                    spec,
-                    my_audio,
-                    file_name,
-                    class_picker,
-                ],
+            self.gen_button_handler(
+                model_short_name,
+                selection_method,
+                class_picker,
+                file_name,
+                gen_button,
+                spec,
+                my_audio,
             )
-            my_audio.stop_recording(
-                fn=self.generate_spec_from_input,
-                inputs=[model_short_name, my_audio],
-                outputs=[spec],
-            )
-            my_audio.upload(
-                fn=self.generate_spec_from_input,
-                inputs=[model_short_name, my_audio],
-                outputs=[spec],
-            )
-            model_short_name.change(
-                fn=self.update_gradio_elements_from_filename,
-                inputs=[file_name, class_picker, model_short_name, selection_method],
-                outputs=[
-                    spec,
-                    my_audio,
-                    file_name,
-                    class_picker,
-                ],
+            self.audio_input_handler(model_short_name, spec, my_audio)
+            self.model_change_handler(
+                model_short_name,
+                selection_method,
+                class_picker,
+                file_name,
+                spec,
+                my_audio,
             )
 
             gr.HTML("<hr>")
             with gr.Row():
                 with gr.Column(scale=0):
                     gr.HTML("<h2>2) Then run the audio through the model:</h2>")
-                    num_time_slices = gr.Dropdown(
-                        choices=range(1, 7),
-                        value=3,
-                        scale=1,
-                        label="Number of Time Slices",
-                    )
-                    num_mel_slices = gr.Dropdown(
-                        choices=range(1, 7),
-                        value=3,
-                        scale=1,
-                        label="Number of Mel Slices",
-                    )
-                    infer = gr.Button("Classify full audio and all sub-slices", scale=1)
-                    infer_out = gr.TextArea(
-                        lines=1,
-                        value="",
-                        label="Output",
-                        scale=3,
-                        interactive=False,
-                        visible=False,
-                    )
-                    prediction = gr.TextArea(
-                        lines=1,
-                        value="",
-                        interactive=False,
-                        label="Prediction (full audio)",
-                    )
+                    num_time_slices, num_mel_slices = self.time_and_mel_slice_selector()
+                    infer = self.classify_button()
+                    infer_out = self.infer_out_unused()
+                    prediction = self.prediction_output()
                 with gr.Column(scale=3):
-                    predictions = gr.Label(
-                        label="Class probabilities (full audio)", scale=3
-                    )
-                # with gr.Column():
-                #     infer_audio = gr.Audio(visible=False)
-                #     infer_spec = gr.Plot(visible=False, container=True)
+                    predictions = self.label_probabilities()
                 with gr.Column(scale=3):
-                    gr.HTML(
-                        "<h2>Removing this part of the spectrogram has the most impact on the prediction:</h2>"
-                    )
-                    infer_most_val_spec = gr.Plot(
-                        container=True,
-                        label="Most valuable portion of spec for current prediction",
-                    )
-                    gr.HTML("<h2>Compare this audio to the full audio above:</h2>")
-                    infer_most_val_audio = gr.Audio(
-                        label="Most valuable audio by time and frequency"
-                    )
+                    infer_most_val_spec = self.most_valuable_spec()
+                    infer_most_val_audio = self.most_valuable_audio()
             gr.HTML("<hr>")
-            gr.Markdown(intro_markdown)
-            infer.click(
-                fn=self.classify,
-                inputs=[
-                    my_audio,
-                    model_short_name,
-                    class_picker,
-                    num_time_slices,
-                    num_mel_slices,
-                ],
-                outputs=[
-                    infer_out,
-                    infer_most_val_spec,
-                    infer_most_val_audio,
-                    prediction,
-                    predictions,
-                ],
+            gr.Markdown(self.get_intro_markdown())
+            self.classify_click_handler(
+                model_short_name,
+                class_picker,
+                my_audio,
+                num_time_slices,
+                num_mel_slices,
+                infer,
+                infer_out,
+                prediction,
+                predictions,
+                infer_most_val_spec,
+                infer_most_val_audio,
             )
             return demo
+
+    def classify_click_handler(
+        self,
+        model_short_name,
+        class_picker,
+        my_audio,
+        num_time_slices,
+        num_mel_slices,
+        infer,
+        infer_out,
+        prediction,
+        predictions,
+        infer_most_val_spec,
+        infer_most_val_audio,
+    ):
+        infer.click(
+            fn=self.classify,
+            inputs=[
+                my_audio,
+                model_short_name,
+                class_picker,
+                num_time_slices,
+                num_mel_slices,
+            ],
+            outputs=[
+                infer_out,
+                infer_most_val_spec,
+                infer_most_val_audio,
+                prediction,
+                predictions,
+            ],
+        )
+
+    def most_valuable_audio(self):
+        gr.HTML("<h2>Compare this audio to the full audio above:</h2>")
+        infer_most_val_audio = gr.Audio(
+            label="Most valuable audio by time and frequency"
+        )
+
+        return infer_most_val_audio
+
+    def most_valuable_spec(self):
+        gr.HTML(
+            "<h2>Removing this part of the spectrogram has the most impact on the prediction:</h2>"
+        )
+        infer_most_val_spec = gr.Plot(
+            container=True,
+            label="Most valuable portion of spec for current prediction",
+        )
+
+        return infer_most_val_spec
+
+    def label_probabilities(self):
+        predictions = gr.Label(label="Class probabilities (full audio)", scale=3)
+
+        return predictions
+
+    def prediction_output(self):
+        prediction = gr.TextArea(
+            lines=1,
+            value="",
+            interactive=False,
+            label="Prediction (full audio)",
+        )
+
+        return prediction
+
+    def infer_out_unused(self):
+        infer_out = gr.TextArea(
+            lines=1,
+            value="",
+            label="Output",
+            scale=3,
+            interactive=False,
+            visible=False,
+        )
+
+        return infer_out
+
+    def classify_button(self):
+        infer = gr.Button("Classify full audio and all sub-slices", scale=1)
+        return infer
+
+    def time_and_mel_slice_selector(self):
+        num_time_slices = gr.Dropdown(
+            choices=range(1, 7),
+            value=3,
+            scale=1,
+            label="Number of Time Slices",
+        )
+        num_mel_slices = gr.Dropdown(
+            choices=range(1, 7),
+            value=3,
+            scale=1,
+            label="Number of Mel Slices",
+        )
+
+        return num_time_slices, num_mel_slices
+
+    def spectrogram_plot(self):
+        spec = gr.Plot(container=True, label="Mel spectrogram of file")
+        return spec
+
+    def audio_player(self):
+        my_audio = gr.Audio(interactive=True, label="File audio")
+        return my_audio
+
+    def model_change_handler(
+        self,
+        model_short_name,
+        selection_method,
+        class_picker,
+        file_name,
+        spec,
+        my_audio,
+    ):
+        model_short_name.change(
+            fn=self.update_gradio_elements_from_filename,
+            inputs=[file_name, class_picker, model_short_name, selection_method],
+            outputs=[
+                spec,
+                my_audio,
+                file_name,
+                class_picker,
+            ],
+        )
+
+    def audio_input_handler(self, model_short_name, spec, my_audio):
+        my_audio.stop_recording(
+            fn=self.generate_spec_from_input,
+            inputs=[model_short_name, my_audio],
+            outputs=[spec],
+        )
+        my_audio.upload(
+            fn=self.generate_spec_from_input,
+            inputs=[model_short_name, my_audio],
+            outputs=[spec],
+        )
+
+    def gen_button_handler(
+        self,
+        model_short_name,
+        selection_method,
+        class_picker,
+        file_name,
+        gen_button,
+        spec,
+        my_audio,
+    ):
+        gen_button.click(
+            fn=self.generate_spec_from_example,
+            inputs=[file_name, class_picker, model_short_name, selection_method],
+            outputs=[
+                spec,
+                my_audio,
+                file_name,
+                class_picker,
+            ],
+        )
+
+    def example_selector(
+        self,
+        model_short_name,
+        selection_method,
+        class_picker,
+        file_name,
+        spec,
+        my_audio,
+    ):
+        gr.Examples(
+            fn=self.generate_spec_from_example,
+            label="Preselected examples:",
+            examples=[["100263-2-0-117.wav"], ["100852-0-0-0.wav"]],
+            inputs=[
+                file_name,
+                class_picker,
+                model_short_name,
+                selection_method,
+            ],
+            outputs=[
+                spec,
+                my_audio,
+                file_name,
+                class_picker,
+            ],
+            run_on_click=True,
+        )
+
+    def filename_input(self):
+        gr.HTML("OR<br><br>Fill this in and choose 'by filename'")
+        file_name = gr.Textbox(label="filename")
+        return file_name
+
+    def class_selector(self, classes):
+        gr.HTML("Fill this in and choose 'randomly from class' above")
+        class_picker = gr.Dropdown(
+            choices=classes,
+            label="Choose a class",
+            value="dog_bark",
+        )
+
+        return class_picker
+
+    def file_selector(self, choices):
+        gr.HTML("<h2>1) Choose a file from the UrbanSound8K dataset:</h2>")
+        selection_method = gr.Radio(
+            label="Sound clip lookup:", choices=choices, value="class"
+        )
+        return selection_method
+
+    def model_selector(self):
+        model_short_name = gr.Dropdown(
+            choices=self.model_handler.model_mapping,
+            value="FT",
+            label="Choose a model to generate spectrogram and run classification with:",
+            visible=False,
+        )
+        return model_short_name
 
     def generate_spec_from_example(
         self, file_name, class_picker, model_short_name, selection_method

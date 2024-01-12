@@ -1,6 +1,6 @@
 ---
 title: Audio Model Interpretation
-emoji: 👀
+emoji: 🎙️
 colorFrom: green
 colorTo: purple
 sdk: gradio

@@ -1,16 +1,15 @@
-import warnings
 import logging
+import warnings
+from datetime import datetime
+
 import evaluate
 import numpy as np
+import torch
 from datasets import Audio, load_dataset
-from transformers import (
-    ASTFeatureExtractor,
-    AutoModelForAudioClassification,
-    Trainer,
-    TrainingArguments,
-)
-import wandb
+from transformers import (ASTFeatureExtractor, AutoModelForAudioClassification,
+                          Trainer, TrainingArguments)
 
+import wandb
 
 logging.basicConfig(
     format="%(asctime)s - %(filename)s: %(lineno)d - %(levelname)s - %(message)s",
@@ -102,7 +101,7 @@ config = {
     "per_device_train_batch_size": 12,
     "logging_strategy": "epoch",
     "evaluation_strategy": "epoch",
-    "num_train_epochs": 12,
+    "num_train_epochs": 4,
     "learning_rate": 1e-5,
     "lr_scheduler_type": "constant",
     "report_to": "none",
@@ -114,14 +113,15 @@ config = {
 }
 wandb_run = True
 wandb_config = config.copy()
-freeze_layers_n = 0
+freeze_layers_n = 4
 wandb_config["frozen_layers"] = freeze_layers_n
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 if wandb_run:
     config["report_to"] = "wandb"
     wandb.init(project="finetune", config=wandb_config)
 
-for val_fold in range(1, 11):
+for val_fold in range(2, 3):
     model = AutoModelForAudioClassification.from_pretrained(
         "MIT/ast-finetuned-audioset-10-10-0.4593",
         num_labels=10,
@@ -133,7 +133,7 @@ for val_fold in range(1, 11):
     dataset = load_dataset("danavery/urbansound8k")["train"]
     feature_extractor = ASTFeatureExtractor()
 
-    train_dataset, val_dataset = get_train_val_datasets(dataset, fraction=.3, fold=val_fold)
+    train_dataset, val_dataset = get_train_val_datasets(dataset, fraction=1, fold=val_fold)
 
     print(model.num_parameters())
     training_args = TrainingArguments(**config)
@@ -147,7 +147,9 @@ for val_fold in range(1, 11):
     )
 
     trainer.train()
-# model.push_to_hub("danavery/ast-finetune-urbansound8k")
+model.push_to_hub("danavery/ast-finetune-urbansound8k")
+torch.save(model, f"finetune-{timestamp}.pth")
+
 # with torch.no_grad():
 #     outputs = model(input_values)
 

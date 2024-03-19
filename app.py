@@ -1,4 +1,5 @@
 import logging
+import os
 
 from audio_file_feature_extractor import AudioFileFeatureExtractor
 from gradio_ui_generator import GradioUIGenerator
@@ -36,4 +37,5 @@ class App:
 # ui_generator = app.gradio_ui
 demo = App().gradio_ui.generate_demo()
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0")
+    port = os.environ.get('AUDIO_INTERP_PORT', 7861)
+    demo.launch(server_name="0.0.0.0", server_port=port)

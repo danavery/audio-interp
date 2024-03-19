@@ -37,5 +37,5 @@ class App:
 # ui_generator = app.gradio_ui
 demo = App().gradio_ui.generate_demo()
 if __name__ == "__main__":
-    port = os.environ.get('AUDIO_INTERP_PORT', 7861)
+    port = int(os.environ.get('AUDIO_INTERP_PORT', 7861))
     demo.launch(server_name="0.0.0.0", server_port=port)

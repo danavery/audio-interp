@@ -36,4 +36,4 @@ class App:
 # ui_generator = app.gradio_ui
 demo = App().gradio_ui.generate_demo()
 if __name__ == "__main__":
-    demo.launch(server_name="127.0.0.1")
+    demo.launch(server_name="0.0.0.0")

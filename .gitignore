@@ -5,3 +5,4 @@ wandb/
 __pycache__/
 *.pkl
 *.wav
+.python-version

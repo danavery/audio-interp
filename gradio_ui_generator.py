@@ -445,7 +445,7 @@ class GradioUIGenerator:
     def get_intro_markdown(self):
         with open("./README.md", "r") as file:
             intro_markdown = file.read()
-            position = intro_markdown.find("# Playing")
+            position = intro_markdown.find("# AST")
             if position != -1:
                 intro_markdown = intro_markdown[position:]
         return intro_markdown

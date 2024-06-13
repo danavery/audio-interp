@@ -26,8 +26,7 @@ class SpectrogramGenerator:
         )
         self.amplitude_to_db_transformer = AmplitudeToDB()
 
-    def generate_mel_spectrogram(self, audio, sample_rate):
-        self.spec_transformer.sample_rate = sample_rate
+    def generate_mel_spectrogram(self, audio):
         mel_spec = self.spec_transformer(audio).squeeze(0)
         mel_spec_db = self.amplitude_to_db_transformer(mel_spec)
         return mel_spec_db
@@ -53,12 +52,28 @@ class SpectrogramGenerator:
         return fig
 
     @staticmethod
-    def split_spectrogram(
-        spec, num_time_slices, time_slice_size, sample_rate, num_mel_slices=1
+    def ablate_spectrogram(
+        spec, num_time_slices, time_slice_size, num_mel_slices=1
     ):
+        """
+        Ablates the spectrogram by splitting it into multiple time and Mel slices
+        and replacing each segment with the mean of the dataset values.
+
+        Parameters:
+            spec (torch.Tensor): The spectrogram tensor.
+            num_time_slices (int): Number of time slices to split the spectrogram into.
+            time_slice_size (int): The size of each time slice.
+            num_mel_slices (int): Number of Mel slices to split each time slice into (default is 1).
+
+        Returns:
+            torch.Tensor: A stacked tensor of the ablated spectrogram slices.
+        """
+        MEAN_VALUE = 0.4670  # mean value of the UrbanSound8K dataset
+
         num_mels = spec.shape[1]
         mel_slice_size = num_mels // num_mel_slices
         spec_variants = []
+
         for i in range(num_time_slices):
             start = i * time_slice_size
             end = start + time_slice_size
@@ -66,28 +81,41 @@ class SpectrogramGenerator:
                 mel_start = mel_slice_index * mel_slice_size
                 mel_end = mel_start + mel_slice_size
                 filtered_spec = spec.clone()
-                filtered_spec[start:end, mel_start:mel_end] = 0.4670
+                filtered_spec[start:end, mel_start:mel_end] = MEAN_VALUE
                 spec_variants.append(torch.tensor(filtered_spec))
         spec_variants = torch.stack(spec_variants)
         return spec_variants
 
     @staticmethod
-    def pad_spec(
+    def isolate_spectrogram_segment(
         spec,
-        segment_size,
-        most_valuable_time,
+        time_slice_size,
+        most_valuable_time_slice_index,
         num_mel_bands,
         num_mel_slices,
-        most_valuable_mel_index,
+        most_valuable_mel_slice_index,
     ):
+        """
+        Isolates a specific segment of the spectrogram by zeroing out the rest.
+
+        Parameters:
+            spec (torch.Tensor): The spectrogram tensor.
+            time_slice_size (int): The size of the segment to keep along the time dimension.
+            most_valuable_time_slice_index (int): The index of the most valuable time segment.
+            num_mel_bands (int): The total number of Mel bands.
+            num_mel_slices (int): The number of Mel slices.
+            most_valuable_mel_slice_index (int): The index of the most valuable Mel slice.
+
+        Returns:
+            torch.Tensor: A PyTorch tensor of the isolated segment.
+        """
         logger.info(spec.shape)
-        start_time = most_valuable_time * segment_size
-        end_time = start_time + segment_size
+        start_time = most_valuable_time_slice_index * time_slice_size
+        end_time = start_time + time_slice_size
         mel_portion_size = num_mel_bands // num_mel_slices
-        start_mel = mel_portion_size * most_valuable_mel_index
+        start_mel = mel_portion_size * most_valuable_mel_slice_index
         end_mel = start_mel + mel_portion_size
         logger.info(f"{start_time=} {end_time=} {start_mel=} {end_mel=}")
-        # most_valuable_spec = spec[start:end, :]
         most_valuable_spec = spec.clone()
         most_valuable_spec[0:start_time, :] = 0.0
         most_valuable_spec[end_time:, :] = 0.0

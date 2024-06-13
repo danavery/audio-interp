@@ -105,7 +105,7 @@ class ModelHandler:
         logger.info(actual_length)
         time_slice_size = actual_length // num_time_slices
         spec_variants = self._generate_spec_variants(
-            spec, num_time_slices, num_mel_slices, sample_rate, time_slice_size
+            spec, num_time_slices, num_mel_slices, time_slice_size
         )
         logits = self._run_inference_on_variants(model_short_name, spec_variants)
         (
@@ -113,13 +113,13 @@ class ModelHandler:
             most_valuable_mel_slice,
         ) = self._find_most_valuable_segment(actual_class_id, num_mel_slices, logits)
         logger.info(f"{most_valuable_mel_slice=}, {most_valuable_time_slice=}")
-        most_valuable_spec = SpectrogramGenerator.pad_spec(
+        most_valuable_spec = SpectrogramGenerator.isolate_spectrogram_segment(
             spec,
             time_slice_size,
             most_valuable_time_slice,
             mel_bands,
             num_mel_slices=num_mel_slices,
-            most_valuable_mel_index=most_valuable_mel_slice,
+            most_valuable_mel_slice_index=most_valuable_mel_slice,
         )
         val_audio = ModelHandler.filter_audio(
             num_time_slices,
@@ -146,10 +146,10 @@ class ModelHandler:
         return most_valuable_time_slice, most_valuable_mel_slice
 
     def _generate_spec_variants(
-        self, spec, num_time_slices, num_mel_slices, sample_rate, time_slice_size
+        self, spec, num_time_slices, num_mel_slices, time_slice_size
     ):
-        spec_variants = SpectrogramGenerator.split_spectrogram(
-            spec, num_time_slices, time_slice_size, sample_rate, num_mel_slices
+        spec_variants = SpectrogramGenerator.ablate_spectrogram(
+            spec, num_time_slices, time_slice_size, num_mel_slices
         )
 
         return spec_variants

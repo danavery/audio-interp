@@ -22,8 +22,8 @@ class GradioUIGenerator:
         self.dataset_handler = dataset_handler
         self.audio_file_feature_extractor = audio_file_feature_extractor
         self.mel_filter = MelBandFilter(128, 16000)
-        self.classes = dataset_handler.class_to_class_id
-        self.class_ids = dataset_handler.class_id_to_class
+        self.classes = dataset_handler.indexes["class_to_class_id"]
+        self.class_ids = dataset_handler.indexes["class_id_to_class"]
         self.classes_in_class_id_order = sorted(
             self.classes.keys(), key=lambda x: self.classes[x]
         )
@@ -409,7 +409,7 @@ class GradioUIGenerator:
             spec, model_short_name
         )
 
-        class_id = self.dataset_handler.class_to_class_id[class_picker]
+        class_id = self.classes[class_picker]
         (
             most_valuable_spec,
             most_valuable_audio,

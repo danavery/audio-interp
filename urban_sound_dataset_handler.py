@@ -15,14 +15,9 @@ class UrbanSoundDatasetHandler:
     def __init__(self, dataset_name="danavery/urbansound8k", regenerate=False):
         self.dataset = load_dataset(dataset_name)
         self.dataset = self.dataset.cast_column("audio", Audio(sampling_rate=16000))
-        self.filename_to_index = defaultdict(int)
-        self.class_to_class_id = {}
-        self.class_id_to_class = {}
-        self.class_id_files = defaultdict(list)
-        self.file_to_class_id = {}
         self.index_path = Path("us_indexes.pkl")
         self.regenerate = regenerate
-        self._index_dataset()
+        self.indexes = self._create_or_load_indexes()
 
     def load_file(self, file_name=None, audio_class=None, selection_method="random"):
         if selection_method == "filename":
@@ -37,40 +32,40 @@ class UrbanSoundDatasetHandler:
             waveform, file_sr, slice_file_name, audio_class = self._get_audio_sample()
         return slice_file_name, audio_class, waveform, file_sr
 
-    def _index_dataset(self):
-        if Path(self.index_path).is_file() and not self.regenerate:
-            self._read_saved_indexes()
+    def _create_or_load_indexes(self):
+        if self.index_path.is_file() and not self.regenerate:
+            return self._load_indexes()
         else:
-            self._create_saved_indexes()
+            return self._create_indexes()
 
-    def _create_saved_indexes(self):
+    def _create_indexes(self):
+        indexes = {
+            "filename_to_index": {},
+            "class_to_class_id": {},
+            "class_id_to_class": {},
+            "class_id_files": defaultdict(list),
+            "file_to_class_id": {},
+        }
+
         for index, item in enumerate(self.dataset["train"]):
-            self.filename_to_index[item["slice_file_name"]] = index
-            self.class_to_class_id[item["class"]] = int(item["classID"])
-            self.class_id_to_class[int(item["classID"])] = item["class"]
-            self.class_id_files[int(item["classID"])].append(item["slice_file_name"])
-            self.file_to_class_id[item["slice_file_name"]] = item["classID"]
-        with self.index_path.open("wb") as file:
-            pickle.dump(
-                (
-                    self.filename_to_index,
-                    self.class_to_class_id,
-                    self.class_id_to_class,
-                    self.class_id_files,
-                    self.file_to_class_id,
-                ),
-                file,
-            )
+            slice_file_name = item["slice_file_name"]
+            class_name = item["class"]
+            class_id = item["classID"]
 
-    def _read_saved_indexes(self):
+            indexes["filename_to_index"][slice_file_name] = index
+            indexes["class_to_class_id"][class_name] = int(class_id)
+            indexes["class_id_to_class"][int(class_id)] = class_name
+            indexes["class_id_files"][int(class_id)].append(slice_file_name)
+            indexes["file_to_class_id"][slice_file_name] = class_id
+
+        with self.index_path.open("wb") as file:
+            pickle.dump(indexes, file)
+        return indexes
+
+    def _load_indexes(self):
         with self.index_path.open("rb") as file:
-            (
-                self.filename_to_index,
-                self.class_to_class_id,
-                self.class_id_to_class,
-                self.class_id_files,
-                self.file_to_class_id,
-            ) = pickle.load(file)
+            indexes = pickle.load(file)
+            return indexes
 
     def _fetch_random_audio_example(self):
         example_index = random.randint(0, len(self.dataset["train"]) - 1)
@@ -78,15 +73,15 @@ class UrbanSoundDatasetHandler:
         return example
 
     def _fetch_random_example_by_class(self, audio_class):
-        class_id = self.class_to_class_id[audio_class]
-        filenames = self.class_id_files.get(class_id, [])
+        class_id = self.indexes["class_to_class_id"][audio_class]
+        filenames = self.indexes["class_id_files"][class_id]
         selected_filename = random.choice(filenames)
-        index = self.filename_to_index.get(selected_filename)
+        index = self.indexes["filename_to_index"][selected_filename]
         example = self.dataset["train"][index]
         return example
 
     def _fetch_example_by_filename(self, file_name):
-        example = self.dataset["train"][self.filename_to_index[file_name]]
+        example = self.dataset["train"][self.indexes["filename_to_index"][file_name]]
         return example
 
     def _get_audio_sample(self, file_name=None, audio_class=None):

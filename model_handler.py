@@ -86,7 +86,7 @@ class ModelHandler:
     def classify_audio_sample(self, spec, model_short_name):
         model = self._get_model(model_short_name)
         logits, predicted = self._perform_classification(spec, model)
-        predicted_class = self.dataset_handler.class_id_to_class[predicted.item()]
+        predicted_class = self.dataset_handler.indexes["class_id_to_class"][predicted.item()]
         return (logits, predicted_class)
 
     def create_filtered_spec_and_audio(
@@ -174,7 +174,7 @@ class ModelHandler:
         with torch.no_grad():
             logits = model(batched).logits
             _, predicted = torch.max(logits, 1)
-        logger.info(self.dataset_handler.class_id_to_class)
+        logger.info(self.dataset_handler.indexes["class_id_to_class"])
         return logits, predicted
 
     def _get_model(self, model_short_name):

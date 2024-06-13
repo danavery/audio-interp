@@ -345,7 +345,7 @@ class GradioUIGenerator:
             file_name,
             audio_class,
             input_sr,
-        ) = self.extractor.make_spec_from_dataset(
+        ) = self.extractor.generate_spec_from_dataset(
             file_name, class_picker, feature_extractor, hop_length, selection_method
         )
         fig_element = gr.Plot(
@@ -372,7 +372,7 @@ class GradioUIGenerator:
         feature_extractor, hop_length = self.model_handler.get_feature_extractor(
             model_short_name
         )
-        fig = self.extractor.make_spec_from_input(
+        fig = self.extractor.generate_spec_from_input(
             feature_extractor, hop_length, True, waveform
         )
         fig_element = gr.Plot(value=fig, label="Mel Spectrogram for your input")
@@ -401,7 +401,7 @@ class GradioUIGenerator:
             input_sr,
             raw_audio,
             spec,
-        ) = self.audio_file_feature_extractor.make_spec_from_audio_tuple(
+        ) = self.audio_file_feature_extractor.generate_spec_from_audio_tuple(
             waveform, feature_extractor
         )
 

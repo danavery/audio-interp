@@ -13,7 +13,7 @@ class AudioFileFeatureExtractor:
         self.model_handler = model_handler
         self.dataset_handler = dataset_handler
 
-    def make_spec_from_dataset(
+    def generate_spec_from_dataset(
         self,
         file_name=None,
         audio_class=None,
@@ -26,7 +26,7 @@ class AudioFileFeatureExtractor:
             waveform,
             file_name,
             audio_class,
-        ) = self._create_spec_data_from_filename(
+        ) = self._generate_spec_from_filename(
             file_name, audio_class, feature_extractor, selection_method, truncate=True
         )
         sample_rate = feature_extractor.sampling_rate
@@ -35,7 +35,7 @@ class AudioFileFeatureExtractor:
         logger.info(f"{waveform.shape} {file_name}, {sample_rate}")
         return fig, waveform.numpy(), file_name, audio_class, sample_rate
 
-    def make_spec_from_input(
+    def generate_spec_from_input(
         self, feature_extractor, hop_length, truncate=True, audio=None
     ):
         file_sample_rate, waveform = audio
@@ -46,7 +46,7 @@ class AudioFileFeatureExtractor:
         waveform = self._resample(
             waveform, file_sample_rate, feature_extractor.sampling_rate
         )
-        audio, spec = self._make_spec_with_ast_extractor(
+        audio, spec = self._generate_spec_with_ast_extractor(
             waveform, feature_extractor, truncate
         )
         fig = SpectrogramGenerator.plot_spectrogram(
@@ -54,7 +54,7 @@ class AudioFileFeatureExtractor:
         )
         return fig
 
-    def _create_spec_data_from_filename(
+    def _generate_spec_from_filename(
         self, file_name, audio_class, feature_extractor, selection_method, truncate
     ):
         (
@@ -68,7 +68,7 @@ class AudioFileFeatureExtractor:
         waveform = self._resample(
             waveform, file_sample_rate, feature_extractor.sampling_rate
         )
-        audio, spec = self._make_spec_with_ast_extractor(
+        audio, spec = self._generate_spec_with_ast_extractor(
             waveform, feature_extractor, truncate
         )
         return spec, audio, file_name, audio_class
@@ -96,7 +96,7 @@ class AudioFileFeatureExtractor:
         logger.info(audio.shape)
         return audio
 
-    def _make_spec_with_ast_extractor(
+    def _generate_spec_with_ast_extractor(
         self, waveform, feature_extractor, truncate=False, hop_length=160
     ):
         logger.info(waveform.shape)  # [1, samples]
@@ -120,7 +120,7 @@ class AudioFileFeatureExtractor:
         logger.info(f"{spec.shape=}")
         return waveform, spec
 
-    def make_spec_from_audio_tuple(self, audio, feature_extractor):
+    def generate_spec_from_audio_tuple(self, audio, feature_extractor):
         file_sample_rate = audio[0]
         waveform = torch.tensor(audio[1])
         if waveform.dtype == torch.int16:
@@ -129,7 +129,7 @@ class AudioFileFeatureExtractor:
         waveform = self._resample(
             waveform, file_sample_rate, feature_extractor.sampling_rate
         )
-        raw_audio, spec = self._make_spec_with_ast_extractor(
+        raw_audio, spec = self._generate_spec_with_ast_extractor(
             waveform, feature_extractor, truncate=False
         )
         return feature_extractor.sampling_rate, raw_audio, spec

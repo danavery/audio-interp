@@ -1,6 +1,7 @@
 training*/
 flagged/
 wandb/
+utils/
 .envrc
 __pycache__/
 *.pkl
